@@ -92,6 +92,7 @@ struct SettingsView: View {
 
                 Block(title: "DATEN") {
                     Text("\(store.state.log.count) Einträge auf diesem iPhone.").font(mono(12)).foregroundStyle(Color.muted)
+                    Text("App-Stand: \(AppBuild.id)").font(mono(11)).foregroundStyle(Color.dim)
                     Button("LETZTEN EINTRAG LÖSCHEN") { confirmDelete = true }
                         .buttonStyle(HangarButtonStyle(color: .danger))
                         .disabled(store.state.log.isEmpty)
