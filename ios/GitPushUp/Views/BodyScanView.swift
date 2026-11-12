@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 /// Drehendes Wireframe-Körpermodell. Jede Muskelgruppe ist ein Ellipsoid aus Ringen;
 /// je erschöpfter, desto heller leuchtet sie grün. Antippen wählt einen Muskel.
@@ -25,23 +26,22 @@ struct BodyScanView: View {
                         .foregroundStyle(Color.muted).padding(10)
                 }
             }
-            .contentShape(Rectangle())
-            // Nur waagerechtes Wischen dreht das Modell; senkrecht scrollt die Seite ganz normal weiter
-            .simultaneousGesture(
-                DragGesture(minimumDistance: 12)
-                    .onChanged { v in
-                        if dragBase == nil {
-                            guard Swift.abs(v.translation.width) > Swift.abs(v.translation.height) else { return }
-                            dragBase = dragOffset - Double(v.translation.width) * 0.012
+            // Gesten über UIKit: waagerecht dreht, senkrecht geht sofort an die Scroll-Ansicht, Tippen wählt einen Muskel
+            .overlay(
+                PanTapCatcher(
+                    onPan: { tx, phase in
+                        switch phase {
+                        case .began: dragBase = dragOffset; dragOffset = dragOffset + Double(tx) * 0.012
+                        case .changed: dragOffset = (dragBase ?? dragOffset) + Double(tx) * 0.012
+                        default: dragBase = nil
                         }
-                        dragOffset = (dragBase ?? 0) + Double(v.translation.width) * 0.012
+                    },
+                    onTap: { loc in
+                        let m = BodyModel.pick(at: loc, size: geo.size, angle: currentAngle(Date()))
+                        selected = (m == selected) ? nil : m
                     }
-                    .onEnded { _ in dragBase = nil }
+                )
             )
-            .onTapGesture(coordinateSpace: .local) { loc in
-                let m = BodyModel.pick(at: loc, size: geo.size, angle: currentAngle(Date()))
-                selected = (m == selected) ? nil : m
-            }
         }
         .aspectRatio(1 / 1.05, contentMode: .fit)
     }
@@ -193,5 +193,51 @@ enum BodyModel {
             } else { best = (m, c.z, d) }
         }
         return best?.m
+    }
+}
+
+
+/// Durchsichtige UIKit-Fläche: erkennt nur waagerechtes Wischen und Antippen.
+/// Senkrechte Bewegungen lehnt sie sofort ab, sodass die Seite ohne Verzögerung scrollt.
+struct PanTapCatcher: UIViewRepresentable {
+    var onPan: (CGFloat, UIGestureRecognizer.State) -> Void
+    var onTap: (CGPoint) -> Void
+
+    func makeCoordinator() -> Coordinator { Coordinator(self) }
+
+    func makeUIView(context: Context) -> UIView {
+        let v = UIView()
+        v.backgroundColor = .clear
+        let pan = UIPanGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.pan(_:)))
+        pan.delegate = context.coordinator
+        v.addGestureRecognizer(pan)
+        let tap = UITapGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.tap(_:)))
+        v.addGestureRecognizer(tap)
+        return v
+    }
+
+    func updateUIView(_ uiView: UIView, context: Context) { context.coordinator.parent = self }
+
+    final class Coordinator: NSObject, UIGestureRecognizerDelegate {
+        var parent: PanTapCatcher
+        init(_ p: PanTapCatcher) { parent = p }
+
+        @objc func pan(_ g: UIPanGestureRecognizer) {
+            parent.onPan(g.translation(in: g.view).x, g.state)
+        }
+
+        @objc func tap(_ g: UITapGestureRecognizer) {
+            parent.onTap(g.location(in: g.view))
+        }
+
+        func gestureRecognizerShouldBegin(_ g: UIGestureRecognizer) -> Bool {
+            guard let pan = g as? UIPanGestureRecognizer else { return true }
+            let v = pan.velocity(in: pan.view)
+            return Swift.abs(v.x) > Swift.abs(v.y)
+        }
+
+        func gestureRecognizer(_ g: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer) -> Bool {
+            false
+        }
     }
 }

@@ -489,7 +489,7 @@ $("recFinish").onclick = () => {
   saveTrainer();
   recSel = null;
   showDone("BASELINE", false, "Ziele neu berechnet. Nächster Rekordtag in 4 Wochen.");
-  maybeAutoBackup();
+  if (backupCfg.token) backupNow().catch(() => {}); // Baseline sofort sichern, nicht erst nach 20 h
 };
 
 /* ---------------- Strichfigur ---------------- */
@@ -649,6 +649,7 @@ $("recSave").onclick = () => {
   });
   saveTrainer();
   $("recSaveInfo").textContent = "Gespeichert. Ziele neu berechnet.";
+  if (backupCfg.token) backupNow().catch(() => {});
 };
 $("undoBtn").onclick = () => {
   const l = log[log.length - 1]; if (!l) return;
