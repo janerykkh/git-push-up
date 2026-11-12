@@ -7,7 +7,7 @@ const HOUR = 36e5, DAY = 864e5;
 
 /* ---------------- Speicher ---------------- */
 const KEY = { log: "gpu-log", deleted: "gpu-deleted", last: "gpu-lastcat", backup: "gpu-backup", equip: "gpu-equip",
-  period: "gpu-period", deck: "gpu-deck", trainer: "gpu-trainer" };
+  period: "gpu-period", trainer: "gpu-trainer" };
 function load(k, fallback) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : fallback; } catch (e) { return fallback; } }
 function save(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
 
@@ -17,7 +17,6 @@ let lastCat = load(KEY.last, null);
 let backupCfg = load(KEY.backup, { repo: "janerykkh/git-push-up-private", token: "", last: 0 });
 let equipOn = load(KEY.equip, {});
 let period = load(KEY.period, "day");
-let deck = load(KEY.deck, []);
 let trainer = load(KEY.trainer, { baseline: null, baselineDate: 0, pending: {}, targets: {}, updated: 0 });
 let selMuscle = null;
 
@@ -98,27 +97,13 @@ function pctText(f) { return Math.round(Math.min(1, f) * 100) + "%"; }
 
 /* ---------------- Übungsauswahl ---------------- */
 function pool() { return EXERCISES.filter((e) => !e.retired && (!e.equipment || equipOn[e.equipment])); }
-// Die Runde enthält jede Übung so oft, wie sie Sätze braucht (z. B. Kniebeugen 2×, wenn 48 nicht in eine Minute passen)
+// Passt ein Ziel nicht in etwa eine Minute (cap), wird es pro Mal auf einen Satz verkleinert; der Rest kommt bei späteren Malen
 function setsFor(ex, target) {
   const n = ex.cap && target > ex.cap ? Math.ceil(target / ex.cap) : 1;
   let per = Math.ceil(target / n);
   if (ex.unit === "sec") per = Math.ceil(per / 5) * 5;
   return { n, per };
 }
-function buildRound() {
-  const d = [];
-  pool().forEach((ex) => { const n = setsFor(ex, targetFor(ex)).n; for (let i = 0; i < n; i++) d.push(ex.id); });
-  return d;
-}
-let roundSize = load("gpu-roundsize", 0);
-function liveDeck() {
-  const ids = new Set(pool().map((e) => e.id));
-  deck = deck.filter((id) => ids.has(id));
-  if (!deck.length) { deck = buildRound(); roundSize = deck.length; save("gpu-roundsize", roundSize); }
-  save(KEY.deck, deck);
-  return [...new Set(deck)].map((id) => byId[id]);
-}
-function roundText() { liveDeck(); const total = Math.max(roundSize, deck.length); return `RUNDE ${total - deck.length + 1}/${total}`; }
 
 // Wie gut passt eine Übung gerade? Hoch = trifft frische Muskeln, niedrig = Hauptmuskel noch erschöpft.
 function score(ex, F) {
@@ -130,17 +115,23 @@ function score(ex, F) {
   }
   let s = sum / wsum - pen;
   if (ex.cat === lastCat) s -= 0.1;
+  // Lange nicht gemacht: Bonus wächst über zwei Tage; gerade erst gemacht: Abzug
+  const h = hoursSince(ex.id);
+  s += 0.25 * Math.min(1, h / 48);
+  if (h < 1) s -= 0.5;
   return s;
+}
+function hoursSince(id) {
+  for (let i = log.length - 1; i >= 0; i--) if (log[i].ex === id && !log[i].test) return (Date.now() - log[i].ts) / HOUR;
+  return 96;
 }
 let lastEx = load("gpu-lastex", null);
 function trainerPick(excludeId) {
   const F = fatigueAt();
-  // Dieselbe Übung nicht zweimal direkt hintereinander, außer es ist die letzte der Runde
-  if (!excludeId && lastEx && liveDeck().some((e) => e.id !== lastEx)) excludeId = lastEx;
+  if (!excludeId) excludeId = lastEx;
   const rank = (list) => list.filter((e) => e.id !== excludeId).map((e) => ({ e, s: score(e, F) })).sort((a, b) => b.s - a.s);
-  // Immer aus der laufenden Runde wählen, damit jede Übung einmal drankommt; innerhalb der Runde die passendste
-  let r = rank(liveDeck());
-  if (!r.length) r = rank(pool());
+  let r = rank(pool());
+  if (!r.length) r = pool().map((e) => ({ e, s: 0 }));
   const top = r.filter((x) => x.s >= r[0].s - 0.08);
   return top[Math.floor(Math.random() * top.length)].e;
 }
@@ -158,9 +149,8 @@ function bestFor(m) {
   if (!cands.length) return null;
   const top = Math.max(...cands.map((e) => e.muscles[m]));
   const best = cands.filter((e) => e.muscles[m] === top);
-  const open = best.filter((e) => deck.includes(e.id));
-  const list = open.length ? open : best;
-  return list[Math.floor(Math.random() * list.length)];
+  best.sort((x, y) => hoursSince(y.id) - hoursSince(x.id));
+  return best[0];
 }
 
 /* ---------------- Bildschirme ---------------- */
@@ -217,7 +207,8 @@ function renderHome() {
   const first = !trainer.baselineDate;
   $("goBtn").classList.toggle("rec", first);
   $("goLabel").textContent = first ? "REKORDTAG" : "ÜBUNG";
-  $("roundInfo").textContent = first ? "EINMAL DEINE BASELINE MESSEN" : roundText();
+  $("roundInfo").textContent = first ? "EINMAL DEINE BASELINE MESSEN" : "";
+  $("roundInfo").hidden = !first;
   $("recBanner").hidden = first || !recordDue();
   $("recBanner").innerHTML = `REKORDTAG FÄLLIG <span>4 TESTS · ~10 MIN</span>`;
   $("sysline").textContent = first ? "KALIBRIERUNG NÖTIG" : today.length ? "SYSTEME ONLINE" : "BEREIT";
@@ -405,7 +396,6 @@ function finish(done, actual) {
   const { ex, target } = current;
   log.push({ id: uid(), ex: ex.id, cat: ex.cat, target, actual, done, ts: Date.now() });
   persistLog();
-  const di = deck.indexOf(ex.id); if (di >= 0) deck.splice(di, 1); save(KEY.deck, deck);
   lastEx = ex.id; save("gpu-lastex", lastEx);
   lastCat = ex.cat; save(KEY.last, lastCat);
   const u = ex.unit === "sec" ? " s" : "";
@@ -496,7 +486,6 @@ $("recFinish").onclick = () => {
   trainer.pending = {};
   trainer.targets = {};
   pool().forEach((ex) => { trainer.targets[ex.id] = { t: roundTarget(ex, estMax(ex) * WORK_FRACTION), reviewed: Date.now(), change: 0 }; });
-  deck = []; save(KEY.deck, deck);
   saveTrainer();
   recSel = null;
   showDone("BASELINE", false, "Ziele neu berechnet. Nächster Rekordtag in 4 Wochen.");
@@ -657,7 +646,6 @@ $("recSave").onclick = () => {
     const old = trainer.targets[ex.id];
     trainer.targets[ex.id] = { t: roundTarget(ex, estMax(ex) * WORK_FRACTION), reviewed: old ? old.reviewed : Date.now(), change: 0 };
   });
-  deck = []; save(KEY.deck, deck);
   saveTrainer();
   $("recSaveInfo").textContent = "Gespeichert. Ziele neu berechnet.";
 };
