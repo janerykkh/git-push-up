@@ -19,19 +19,27 @@ struct RootView: View {
     @EnvironmentObject var store: Store
     @Environment(\.scenePhase) private var scenePhase
 
-    @State private var exercise: Exercise? = nil
+    @State private var exercise: ActivePick? = nil
+    @State private var showManual = false
     @State private var showRecord = false
     @State private var showSettings = false
     @State private var showPulse = false
     @State private var done: DoneInfo? = nil
 
     struct DoneInfo: Equatable { let stamp: String; let text: String; let partly: Bool }
+    struct ActivePick: Identifiable { let id = UUID(); let ex: Exercise; let boss: Bool }
+
+    private func pickNext(excluding: String? = nil) -> ActivePick {
+        let p = store.pick(excluding: excluding)
+        return ActivePick(ex: p.ex, boss: p.boss)
+    }
 
     var body: some View {
         ZStack {
             HomeView(
-                onGo: { exercise = store.pick() },
-                onExercise: { exercise = $0 },
+                onGo: { exercise = pickNext() },
+                onExercise: { exercise = ActivePick(ex: $0, boss: false) },
+                onManual: { showManual = true },
                 onRecord: { showRecord = true },
                 onSettings: { showSettings = true },
                 onPulse: { showPulse = true }
@@ -43,22 +51,33 @@ struct RootView: View {
                     .zIndex(1)
             }
         }
-        .fullScreenCover(item: $exercise) { ex in
+        .fullScreenCover(item: $exercise) { pick in
+            let ex = pick.ex
             ExerciseView(
                 ex: ex,
+                boss: pick.boss,
                 onFinish: { ok, target, actual in
-                    store.logResult(ex, target: target, actual: actual, done: ok)
+                    store.logResult(ex, target: target, actual: actual, done: ok, boss: pick.boss)
                     let u = ex.unit == .sec ? " s" : ""
                     let side = ex.side ? " pro Seite" : ""
                     exercise = nil
-                    flash(ok ? "INSTALLED" : "LOGGED",
-                          ok ? "\(target)\(u) \(ex.name)\(side)" : "\(actual) von \(target)\(u) \(ex.name)",
-                          partly: !ok)
+                    if pick.boss {
+                        let record = store.checkBossRecord(ex, actual: actual)
+                        flash(record ? "NEUER REKORD" : "BOSS BESIEGT", "\(actual)\(u) \(ex.name)\(side)", partly: false)
+                    } else {
+                        flash(ok ? "INSTALLED" : "LOGGED",
+                              ok ? "\(target)\(u) \(ex.name)\(side)" : "\(actual) von \(target)\(u) \(ex.name)",
+                              partly: !ok)
+                    }
                 },
-                onSkip: { exercise = store.pick(excluding: ex.id) },
+                onSkip: { exercise = pickNext(excluding: ex.id) },
                 onClose: { exercise = nil }
             )
             .environmentObject(store)
+        }
+        .sheet(isPresented: $showManual) {
+            ManualEntryView(onDone: { showManual = false })
+                .environmentObject(store)
         }
         .fullScreenCover(isPresented: $showRecord) {
             RecordView(

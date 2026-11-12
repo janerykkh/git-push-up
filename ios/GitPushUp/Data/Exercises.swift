@@ -1,4 +1,9 @@
-// Automatisch aus der Web-App (exercises.js) übernommen. Neue Übungen einfach unten in `all` ergänzen.
+// Ursprünglich aus der Web-App übernommen. Neue Übungen einfach unten in `all` ergänzen.
+//
+// Muskelgewichte (1 = Hauptmuskel) orientieren sich an EMG- und Biomechanik-Studien zu Körpergewichtsübungen:
+// Kniebeugen ohne Zusatzgewicht sind vor allem Oberschenkel-vorne-Übungen, der Po arbeitet bei Ausfallschritten
+// und Bridges stärker. Beim Rudern ist der Bizeps oft das schwächste Glied. Liegestütze: Brust vorne,
+// Trizeps und vordere Schulter deutlich mit; eng gegriffen dreht sich das zugunsten des Trizeps.
 
 import CoreGraphics
 
@@ -111,6 +116,11 @@ struct Exercise: Identifiable {
     var prop: [[CGFloat]] = []
 
     func weight(_ m: Muscle) -> Double { muscles[m] ?? 0 }
+    /// Die Muskeln mit dem höchsten Anteil an dieser Übung
+    var primary: [Muscle] {
+        let top = muscles.values.max() ?? 1
+        return muscles.filter { $0.value >= top - 0.001 }.map { $0.key }.sorted { $0.rawValue < $1.rawValue }
+    }
 }
 
 private func pose(_ v: [[CGFloat]]) -> [CGPoint] { v.map { CGPoint(x: $0[0], y: $0[1]) } }
@@ -127,7 +137,7 @@ extension Exercise {
                  factor: 1,
                  cap: 30,
                  cue: "Füße schulterbreit, Po nach hinten, Knie über die Zehen. Unten kurz halten.",
-                 muscles: [.quads: 1, .glutes: 1, .hamstrings: 0.5, .lowerBack: 0.25, .calves: 0.25, .abs: 0.25],
+                 muscles: [.quads: 1, .glutes: 0.6, .hamstrings: 0.2, .lowerBack: 0.25, .calves: 0.2, .abs: 0.2],
                  a: pose([[120, 28], [120, 44], [120, 95], [121, 122], [121, 150], [119, 122], [119, 150], [136, 56], [156, 56], [134, 58], [154, 58]]),
                  b: pose([[124, 60], [118, 74], [100, 116], [132, 120], [124, 150], [130, 121], [122, 150], [136, 80], [158, 80], [134, 82], [156, 82]])),
         Exercise(id: "lunge",
@@ -141,7 +151,7 @@ extension Exercise {
                  factor: 0.5,
                  cap: 15,
                  cue: "Ein Bein weit nach hinten setzen, hinteres Knie fast zum Boden. Oberkörper aufrecht.",
-                 muscles: [.quads: 1, .glutes: 1, .hamstrings: 0.5, .calves: 0.25, .obliques: 0.25],
+                 muscles: [.quads: 1, .glutes: 0.8, .hamstrings: 0.3, .calves: 0.25, .obliques: 0.2],
                  a: pose([[120, 28], [120, 44], [120, 95], [121, 122], [121, 150], [119, 122], [119, 150], [121, 70], [121, 94], [119, 70], [119, 94]]),
                  b: pose([[116, 50], [116, 66], [114, 114], [138, 118], [140, 150], [96, 142], [74, 150], [118, 90], [120, 112], [114, 90], [112, 112]])),
         Exercise(id: "bridge",
@@ -155,7 +165,7 @@ extension Exercise {
                  factor: 0.55,
                  cap: 15,
                  cue: "Rückenlage, ein Fuß aufgestellt, das andere Bein gestreckt. Becken hoch, Po fest anspannen.",
-                 muscles: [.glutes: 1, .hamstrings: 1, .lowerBack: 0.5, .abs: 0.25],
+                 muscles: [.glutes: 1, .hamstrings: 0.6, .lowerBack: 0.3, .abs: 0.2],
                  a: pose([[40, 138], [56, 142], [110, 146], [138, 120], [150, 150], [142, 140], [172, 134], [76, 148], [98, 149], [76, 148], [98, 149]]),
                  b: pose([[40, 138], [56, 142], [114, 118], [144, 114], [150, 150], [160, 104], [192, 94], [76, 148], [98, 149], [76, 148], [98, 149]])),
         Exercise(id: "pushup",
@@ -168,7 +178,7 @@ extension Exercise {
                  factor: 1,
                  cap: 25,
                  cue: "Körper wie ein Brett, Ellbogen etwa 45° am Körper. Langsam runter, kontrolliert hoch.",
-                 muscles: [.chest: 1, .triceps: 1, .frontDelt: 0.5, .abs: 0.5],
+                 muscles: [.chest: 1, .triceps: 0.7, .frontDelt: 0.6, .abs: 0.4],
                  a: pose([[176, 94], [162, 102], [106, 124], [78, 136], [50, 148], [78, 136], [50, 148], [164, 126], [165, 150], [166, 126], [167, 150]]),
                  b: pose([[178, 124], [162, 130], [106, 139], [78, 143], [50, 148], [78, 143], [50, 148], [142, 134], [165, 150], [144, 134], [167, 150]])),
         Exercise(id: "closepush",
@@ -181,7 +191,7 @@ extension Exercise {
                  factor: 0.45,
                  cap: 15,
                  cue: "Hände knapp schulterbreit, Ellbogen streifen beim Runtergehen die Rippen. Fokus auf den Trizeps.",
-                 muscles: [.triceps: 1, .chest: 0.5, .frontDelt: 0.5, .abs: 0.5],
+                 muscles: [.triceps: 1, .chest: 0.7, .frontDelt: 0.6, .abs: 0.4],
                  a: pose([[176, 94], [162, 102], [106, 124], [78, 136], [50, 148], [78, 136], [50, 148], [160, 126], [160, 150], [162, 126], [162, 150]]),
                  b: pose([[176, 124], [160, 130], [106, 139], [78, 143], [50, 148], [78, 143], [50, 148], [136, 138], [160, 150], [138, 138], [162, 150]])),
         Exercise(id: "pike",
@@ -210,7 +220,7 @@ extension Exercise {
                  cap: 20,
                  note: "Vorher prüfen, dass der Tisch nicht zu dir kippen kann.",
                  cue: "Rücklings unter den Tisch, Kante schulterbreit greifen, Knie 90°. Brust zur Kante ziehen, Schulterblätter zusammen, langsam ablassen.",
-                 muscles: [.lats: 1, .upperBack: 1, .biceps: 0.5, .rearDelt: 0.5, .glutes: 0.25],
+                 muscles: [.lats: 1, .upperBack: 1, .biceps: 0.75, .rearDelt: 0.6, .abs: 0.2, .glutes: 0.2],
                  a: pose([[60, 130], [74, 126], [118, 128], [150, 104], [160, 150], [152, 104], [162, 150], [74, 102], [76, 78], [76, 102], [78, 78]]),
                  b: pose([[60, 94], [76, 98], [118, 108], [150, 102], [160, 150], [152, 102], [162, 150], [96, 104], [80, 78], [98, 104], [82, 78]]),
                  prop: [[30, 76, 128, 76], [32, 76, 32, 150]]),
@@ -240,7 +250,7 @@ extension Exercise {
                  factor: 1,
                  cap: 60,
                  cue: "Bauchlage, Arme lang nach vorne. Arme und Beine gleichzeitig anheben und halten.",
-                 muscles: [.lowerBack: 1, .glutes: 0.5, .upperBack: 0.5, .rearDelt: 0.25, .hamstrings: 0.25],
+                 muscles: [.lowerBack: 1, .glutes: 0.6, .hamstrings: 0.4, .upperBack: 0.4, .rearDelt: 0.25],
                  a: pose([[184, 138], [170, 142], [110, 146], [80, 147], [50, 148], [80, 147], [50, 148], [192, 143], [214, 143], [192, 144], [214, 144]]),
                  b: pose([[184, 126], [168, 134], [110, 146], [80, 142], [50, 134], [80, 143], [50, 136], [190, 128], [212, 120], [190, 129], [212, 121]])),
         Exercise(id: "ytw",
@@ -253,7 +263,7 @@ extension Exercise {
                  factor: 0.2,
                  cap: 10,
                  cue: "Bauchlage, Stirn knapp über dem Boden. Arme als Y, dann T, dann W anheben. Eine Runde = Y + T + W.",
-                 muscles: [.rearDelt: 1, .upperBack: 1, .lats: 0.25, .lowerBack: 0.25],
+                 muscles: [.rearDelt: 1, .upperBack: 1, .lowerBack: 0.25, .lats: 0.15],
                  a: pose([[184, 136], [170, 141], [110, 146], [80, 147], [50, 148], [80, 147], [50, 148], [150, 138], [128, 138], [150, 139], [128, 139]]),
                  b: pose([[184, 136], [170, 141], [110, 146], [80, 147], [50, 148], [80, 147], [50, 148], [190, 126], [214, 118], [178, 124], [196, 108]])),
         Exercise(id: "birddog",
@@ -267,7 +277,7 @@ extension Exercise {
                  factor: 0.2,
                  cap: 12,
                  cue: "Hoher Stütz. Diagonal einen Arm nach vorne und das andere Bein nach hinten strecken, Becken bleibt ruhig.",
-                 muscles: [.abs: 1, .lowerBack: 0.5, .glutes: 0.5, .frontDelt: 0.5, .obliques: 0.5],
+                 muscles: [.abs: 0.8, .lowerBack: 0.6, .glutes: 0.6, .obliques: 0.6, .frontDelt: 0.4],
                  a: pose([[176, 94], [162, 102], [106, 124], [78, 136], [50, 148], [78, 136], [50, 148], [164, 126], [165, 150], [166, 126], [167, 150]]),
                  b: pose([[176, 94], [162, 102], [106, 124], [78, 136], [50, 148], [78, 118], [46, 112], [164, 126], [165, 150], [188, 100], [214, 98]])),
         Exercise(id: "plank",
@@ -280,7 +290,7 @@ extension Exercise {
                  factor: 1,
                  cap: 90,
                  cue: "Unterarme unter den Schultern, Körper eine gerade Linie. Bauch und Po fest, ruhig weiteratmen.",
-                 muscles: [.abs: 1, .obliques: 0.5, .frontDelt: 0.25, .glutes: 0.25, .quads: 0.25],
+                 muscles: [.abs: 1, .obliques: 0.5, .frontDelt: 0.3, .quads: 0.25, .glutes: 0.25],
                  a: pose([[176, 108], [162, 116], [106, 130], [78, 139], [50, 148], [78, 139], [50, 148], [160, 148], [184, 148], [162, 148], [186, 148]]),
                  b: pose([[176, 106], [162, 114], [106, 127], [78, 137], [50, 148], [78, 137], [50, 148], [160, 148], [184, 148], [162, 148], [186, 148]])),
         Exercise(id: "sideplank",
@@ -294,7 +304,7 @@ extension Exercise {
                  factor: 0.5,
                  cap: 45,
                  cue: "Unterarm unter der Schulter, Körper eine Linie von Kopf bis Fuß. Becken nicht absacken lassen.",
-                 muscles: [.obliques: 1, .abs: 0.5, .glutes: 0.25, .frontDelt: 0.25],
+                 muscles: [.obliques: 1, .abs: 0.5, .glutes: 0.4, .frontDelt: 0.3],
                  a: pose([[172, 100], [160, 108], [106, 134], [78, 142], [50, 148], [78, 143], [50, 149], [160, 148], [184, 148], [132, 112], [110, 128]]),
                  b: pose([[172, 92], [160, 100], [106, 124], [78, 137], [50, 148], [78, 138], [50, 149], [160, 148], [184, 148], [132, 104], [110, 118]])),
         Exercise(id: "deadbug",
@@ -308,7 +318,7 @@ extension Exercise {
                  factor: 0.25,
                  cap: 15,
                  cue: "Rückenlage, Arme zur Decke, Knie 90°. Unteren Rücken in den Boden drücken, gegengleich Arm und Bein strecken.",
-                 muscles: [.abs: 1, .obliques: 0.5, .quads: 0.25],
+                 muscles: [.abs: 1, .obliques: 0.4, .quads: 0.15],
                  a: pose([[42, 140], [58, 143], [114, 146], [114, 114], [144, 114], [116, 114], [146, 114], [60, 120], [60, 96], [62, 120], [62, 96]]),
                  b: pose([[42, 140], [58, 143], [114, 146], [114, 114], [144, 114], [146, 138], [180, 140], [60, 120], [60, 96], [40, 134], [18, 138]])),
     ]

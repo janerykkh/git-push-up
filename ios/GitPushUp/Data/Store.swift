@@ -51,13 +51,25 @@ final class Store: ObservableObject {
         Array(Set(Exercise.all.compactMap { $0.equipment })).sorted()
     }
 
-    func logResult(_ ex: Exercise, target: Int, actual: Int, done: Bool) {
+    func logResult(_ ex: Exercise, target: Int, actual: Int, done: Bool, boss: Bool = false) {
+        let before = fatigue()
+        if !boss { calibrate(ex, target: target, actual: actual, done: done, before: before) }
         state.log.append(LogEntry(id: LogEntry.newId(), ex: ex.id, cat: ex.cat.rawValue,
-                                  target: target, actual: actual, done: done, test: nil, ts: nowMs()))
+                                  target: target, actual: actual, done: done, test: nil, ts: nowMs(),
+                                  boss: boss ? true : nil))
         state.lastCat = ex.cat.rawValue
         state.lastEx = ex.id
         save()
         Task { await autoBackup() }
+    }
+
+    /// Übung von außerhalb der App nachtragen
+    func logManual(_ ex: Exercise, actual: Int, hoursAgo: Double) {
+        let ts = nowMs() - hoursAgo * hourMs
+        state.log.append(LogEntry(id: LogEntry.newId(), ex: ex.id, cat: ex.cat.rawValue,
+                                  target: actual, actual: actual, done: true, test: nil, ts: ts, manual: true))
+        state.log.sort { $0.ts < $1.ts }
+        save()
     }
 
     func deleteLast() {

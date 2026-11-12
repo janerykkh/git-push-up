@@ -4,6 +4,7 @@ import SwiftUI
 struct ExerciseView: View {
     @EnvironmentObject var store: Store
     let ex: Exercise
+    var boss: Bool = false
     let onFinish: (_ done: Bool, _ target: Int, _ actual: Int) -> Void
     let onSkip: () -> Void
     let onClose: () -> Void
@@ -14,7 +15,7 @@ struct ExerciseView: View {
     @State private var timerValue = 0
     @FocusState private var inputFocused: Bool
 
-    private var target: Int { store.perTime(ex) }
+    private var target: Int { boss ? store.bossTarget(ex) : store.perTime(ex) }
     private var unitText: String {
         (ex.unit == .sec ? "SEKUNDEN HALTEN" : "WIEDERHOLUNGEN") + (ex.side ? " PRO SEITE" : "")
     }
@@ -37,12 +38,25 @@ struct ExerciseView: View {
 
                 Text(ex.name.uppercased()).font(mono(28, .bold)).foregroundStyle(Color.fg)
 
+                if boss {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("BOSS-SATZ").font(mono(13, .heavy)).tracking(4).foregroundStyle(Color.amber).glow(.amber, 8)
+                        Text("Diesmal richtig: so viele saubere Wiederholungen wie möglich, bis noch etwa zwei gehen würden. Genau diese Sätze bauen Muskeln auf. Höchstens einer pro Tag.")
+                            .font(mono(12)).foregroundStyle(Color.fg).fixedSize(horizontal: false, vertical: true)
+                    }
+                    .padding(12)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color.amber.opacity(0.07))
+                    .overlay(RoundedRectangle(cornerRadius: 4).stroke(Color.amber, lineWidth: 1))
+                }
+
                 StickFigure(ex: ex)
 
                 HStack(alignment: .firstTextBaseline, spacing: 12) {
-                    Text("\(target)").font(mono(48, .heavy)).foregroundStyle(ex.cat.color).glow(ex.cat.color, 12)
+                    Text(boss ? "~\(target)" : "\(target)").font(mono(48, .heavy)).foregroundStyle(boss ? Color.amber : ex.cat.color)
+                        .glow(boss ? .amber : ex.cat.color, 12)
                         .monospacedDigit()
-                    Text(unitText).font(mono(12)).tracking(0.8).foregroundStyle(Color.muted)
+                    Text(boss ? unitText + " · SCHÄTZUNG" : unitText).font(mono(12)).tracking(0.8).foregroundStyle(Color.muted)
                 }
 
                 Text(ex.cue).font(mono(14)).foregroundStyle(Color.fg).fixedSize(horizontal: false, vertical: true)
@@ -67,7 +81,8 @@ struct ExerciseView: View {
                                 .background(Color.panel)
                                 .overlay(RoundedRectangle(cornerRadius: 4).stroke(Color.line2, lineWidth: 1))
                             Button("SPEICHERN") {
-                                onFinish(false, target, max(0, Int(partialText) ?? 0))
+                                let v = max(0, Int(partialText) ?? 0)
+                                onFinish(boss ? Double(v) >= Double(target) * 0.9 : false, target, v)
                             }
                             .buttonStyle(HangarButtonStyle(color: .phos, filled: true))
                             .frame(width: 140)
@@ -75,9 +90,9 @@ struct ExerciseView: View {
                     }
                 } else {
                     HStack(spacing: 10) {
-                        Button("GESCHAFFT") { onFinish(true, target, target) }
+                        Button(boss ? "GENAU \(target)" : "GESCHAFFT") { onFinish(true, target, target) }
                             .buttonStyle(HangarButtonStyle(color: .phos, filled: true))
-                        Button("NICHT GESCHAFFT") {
+                        Button(boss ? "ANDERE ZAHL" : "NICHT GESCHAFFT") {
                             stopTimer()
                             if partialText.isEmpty && timerValue > 0 { partialText = "\(timerValue)" }
                             showPartial = true

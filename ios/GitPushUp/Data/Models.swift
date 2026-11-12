@@ -15,8 +15,13 @@ struct LogEntry: Codable, Identifiable, Equatable {
     var done: Bool
     var test: Bool?
     var ts: Millis
+    /// Boss-Satz: so viele wie möglich, bis noch etwa 2 gehen würden
+    var boss: Bool? = nil
+    /// Von Hand nachgetragen (außerhalb der App gemacht)
+    var manual: Bool? = nil
 
     var isTest: Bool { test ?? false }
+    var isBoss: Bool { boss ?? false }
     var exercise: Exercise? { Exercise.byId[ex] }
 
     static func newId() -> String {
@@ -72,6 +77,8 @@ struct PersistedState: Codable {
     var backupRepo: String = "janerykkh/git-push-up-private"
     var lastBackup: Millis = 0
     var pulse: [PulseReading] = []
+    /// Persönlicher Faktor pro Muskel: wie schnell er bei dir im Verhältnis ermüdet (lernt aus deinen Ergebnissen)
+    var muscleScale: [String: Double] = [:]
 }
 
 /// Format der backup.json im privaten Repo (gleich wie bei der Web-App)
@@ -108,5 +115,6 @@ extension PersistedState {
         backupRepo = try c.decodeIfPresent(String.self, forKey: .backupRepo) ?? "janerykkh/git-push-up-private"
         lastBackup = try c.decodeIfPresent(Millis.self, forKey: .lastBackup) ?? 0
         pulse = try c.decodeIfPresent([PulseReading].self, forKey: .pulse) ?? []
+        muscleScale = try c.decodeIfPresent([String: Double].self, forKey: .muscleScale) ?? [:]
     }
 }

@@ -6,6 +6,7 @@ struct HomeView: View {
     @EnvironmentObject var store: Store
     let onGo: () -> Void
     let onExercise: (Exercise) -> Void
+    let onManual: () -> Void
     let onRecord: () -> Void
     let onSettings: () -> Void
     let onPulse: () -> Void
@@ -44,6 +45,14 @@ struct HomeView: View {
                             .buttonStyle(.plain)
                         }
                         goButton
+                        if store.hasBaseline {
+                            Button(action: onManual) {
+                                Text("+ ÜBUNG NACHTRAGEN").font(mono(11)).tracking(1.6).foregroundStyle(Color.muted)
+                                    .frame(maxWidth: .infinity, minHeight: 32)
+                            }
+                            .buttonStyle(.plain)
+                            .padding(.top, -10)
+                        }
                         scan(f)
                         if let m = selected { muscleInfo(m, f).id("info") }
                         muscleList(f)
@@ -198,19 +207,25 @@ struct HomeView: View {
     }
 
     private func muscleList(_ f: [Muscle: Double]) -> some View {
-        Block(title: "AUSLASTUNG", trailing: "grün = erschöpft") {
+        let week = store.weeklyLoad()
+        return Block(title: "AUSLASTUNG", trailing: "JETZT · WOCHE") {
+            Text("Jetzt = wie erschöpft, Woche = wie viel der Muskel in den letzten 7 Tagen gearbeitet hat (100 % ≈ 6 harte Sätze).")
+                .font(mono(10.5)).foregroundStyle(Color.dim).fixedSize(horizontal: false, vertical: true)
             ForEach(groups) { g in
                 HStack(spacing: 6) {
                     Label12(text: g.id)
-                    Text(pct(groupAverage(g, f))).font(mono(11, .bold)).foregroundStyle(Color.wire)
+                    Spacer()
+                    Text(pct(groupAverage(g, f))).font(mono(11, .bold)).foregroundStyle(Color.phos)
+                    Text("·").font(mono(11)).foregroundStyle(Color.dim)
+                    Text(pct(groupAverage(g, week))).font(mono(11, .bold)).foregroundStyle(Color.amber)
                 }
-                .padding(.top, 4)
-                ForEach(g.muscles) { m in muscleRow(m, f[m] ?? 0) }
+                .padding(.top, 6)
+                ForEach(g.muscles) { m in muscleRow(m, f[m] ?? 0, week[m] ?? 0) }
             }
         }
     }
 
-    private func muscleRow(_ m: Muscle, _ v: Double) -> some View {
+    private func muscleRow(_ m: Muscle, _ v: Double, _ wk: Double) -> some View {
         let h = store.hoursToRecover(m, v)
         let c: Color = v >= 0.8 ? .phos : (v > 0.05 ? .wire : .muted)
         return Button { selected = (selected == m) ? nil : m } label: {
@@ -220,8 +235,12 @@ struct HomeView: View {
                         .foregroundStyle(selected == m ? Color.amber : Color.fg)
                     Spacer()
                     Text(pct(v)).font(mono(12, .bold)).monospacedDigit().foregroundStyle(c).glow(v >= 0.8 ? .phos : .clear, 6)
+                    Text("·").font(mono(11)).foregroundStyle(Color.dim)
+                    Text(pct(wk)).font(mono(12, .bold)).monospacedDigit().foregroundStyle(wk >= 1 ? Color.amber : Color.amber.opacity(0.7))
+                        .frame(width: 44, alignment: .trailing)
                 }
                 meter(v, color: v >= 0.8 ? .phos : .wire, height: 3)
+                meter(wk, color: .amber, height: 2).opacity(0.8)
                 if h > 0 { Text("erholt in ca. \(h) h").font(mono(10)).foregroundStyle(Color.dim) }
             }
             .padding(.vertical, 6).padding(.leading, 10)
@@ -429,6 +448,8 @@ struct HomeView: View {
             Spacer()
             Group {
                 if l.isTest { Text("REKORD \(l.actual)\(u)").foregroundStyle(Color.amber).bold() }
+                else if l.isBoss { Text("BOSS \(l.actual)\(u)").foregroundStyle(Color.amber).bold() }
+                else if l.manual == true { Text("+ \(l.actual)\(u)").foregroundStyle(Color.wire) }
                 else if l.done { Text("✓ \(l.target)\(u)").foregroundStyle(Color.phos) }
                 else { Text("\(l.actual) / \(l.target)\(u)").foregroundStyle(Color.muted) }
             }

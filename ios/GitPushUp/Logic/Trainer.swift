@@ -132,10 +132,100 @@ extension Store {
             let rel = Double(l.actual) / estMax(ex)
             let h = (t - l.ts) / hourMs
             for (m, w) in ex.muscles {
-                f[m, default: 0] += (w * rel / Model.fullEffort) * pow(10, -h / m.recoveryHours)
+                f[m, default: 0] += (w * rel * scale(m) / Model.fullEffort) * pow(10, -h / m.recoveryHours)
             }
         }
         return f
+    }
+
+    /// Persönlicher Faktor pro Muskel (1 = wie im Modell, >1 = ermüdet bei dir schneller)
+    func scale(_ m: Muscle) -> Double { state.muscleScale[m.rawValue] ?? 1 }
+
+    /// Lernt aus jedem Ergebnis: Nicht geschafft, obwohl die Hauptmuskeln als frisch galten → sie ermüden bei dir
+    /// schneller als gedacht. Locker geschafft, obwohl sie als erschöpft galten → langsamer. Kleine Schritte, begrenzt.
+    func calibrate(_ ex: Exercise, target: Int, actual: Int, done: Bool, before f: [Muscle: Double]) {
+        guard target > 0 else { return }
+        for m in ex.primary {
+            let v = f[m] ?? 0
+            var k = scale(m)
+            if !done && v < 0.5 {
+                let miss = 1 - Double(actual) / Double(target)
+                k *= 1 + 0.12 * max(0, min(1, miss))
+            } else if done && v >= 0.8 {
+                k *= 0.96
+            } else { continue }
+            state.muscleScale[m.rawValue] = max(0.6, min(1.8, k))
+        }
+    }
+
+    // MARK: Wochen-Belastung
+
+    /// Belastung der letzten 7 Tage in "vollen Sätzen": ein Satz bis kurz vor die Grenze zählt etwa 1.
+    /// 100 % = 6 solche Sätze pro Woche, ein guter Richtwert für Aufbau (Studien sehen ab etwa 4–10 harte Sätze pro Woche klare Effekte).
+    static let weeklyHardSets = 6.0
+
+    func weeklyLoad(at t: Millis = nowMs()) -> [Muscle: Double] {
+        var load: [Muscle: Double] = [:]
+        for m in Muscle.allCases { load[m] = 0 }
+        for l in state.log.reversed() {
+            if t - l.ts > 7 * dayMs { break }
+            guard let ex = l.exercise else { continue }
+            // Sätze weit vor der Grenze zählen weniger: Effekt wächst mit der Nähe zum Maximum
+            let rel = min(1.2, Double(l.actual) / estMax(ex))
+            let effort = pow(rel, 1.5)
+            for (m, w) in ex.muscles { load[m, default: 0] += w * effort }
+        }
+        for m in Muscle.allCases { load[m] = (load[m] ?? 0) / Self.weeklyHardSets }
+        return load
+    }
+
+    // MARK: Boss-Satz
+
+    func hoursSinceBoss(_ m: Muscle) -> Double {
+        if let l = state.log.last(where: { $0.isBoss && ($0.exercise?.primary.contains(m) ?? false) }) {
+            return (nowMs() - l.ts) / hourMs
+        }
+        return 999
+    }
+
+    var bossToday: Bool {
+        let s = startOfDay()
+        return state.log.contains { $0.isBoss && $0.ts >= s }
+    }
+
+    /// Ziel für einen Boss-Satz: etwa 2 vor deiner Grenze
+    func bossTarget(_ ex: Exercise) -> Int {
+        let mx = estMax(ex)
+        return roundTarget(ex, max(mx * 0.6, mx - (ex.unit == .sec ? 10 : 2)))
+    }
+
+    /// Lohnt sich hier gerade ein Boss-Satz? Höchstens einer pro Tag, nur mit frischen Hauptmuskeln,
+    /// nur wenn die Muskelgruppe in der Woche hinterherhinkt oder lange keinen Boss-Satz hatte,
+    /// und nicht bei Übungen, die du schon so oft schaffst, dass es nur noch Ausdauer ist.
+    func shouldBoss(_ ex: Exercise, fatigue f: [Muscle: Double]) -> Bool {
+        guard hasBaseline, !bossToday else { return false }
+        let mx = estMax(ex)
+        if ex.unit == .reps && mx > 40 { return false }
+        if ex.unit == .sec && mx > 120 { return false }
+        let week = weeklyLoad()
+        for m in ex.primary {
+            if (f[m] ?? 0) >= 0.3 { return false }
+        }
+        return ex.primary.contains { (week[$0] ?? 0) < 0.6 || hoursSinceBoss($0) > 72 }
+    }
+
+    /// Neuer Rekord im Boss-Satz? Dann wird die Baseline dieser Marker-Übung angehoben.
+    @discardableResult
+    func checkBossRecord(_ ex: Exercise, actual: Int) -> Bool {
+        guard let mk = ex.marker, mk == ex.id else { return false }
+        let old = markerValue(mk)
+        guard actual > old else { return false }
+        var b = state.trainer.baseline ?? [:]
+        b[mk] = actual
+        state.trainer.baseline = b
+        recomputeTargets(keepReview: true)
+        saveTrainer()
+        return true
     }
 
     func hoursToRecover(_ m: Muscle, _ f: Double) -> Int {
@@ -152,10 +242,11 @@ extension Store {
     /// Hoch = trifft frische Muskeln und ist lange her; niedrig = Hauptmuskel noch erschöpft oder gerade erst gemacht
     func score(_ ex: Exercise, _ f: [Muscle: Double]) -> Double {
         var sum = 0.0, wsum = 0.0, pen = 0.0
+        let prim = ex.primary
         for (m, w) in ex.muscles {
             let v = min(1, f[m] ?? 0)
             sum += w * (1 - v); wsum += w
-            if w >= 1 && v >= 0.8 { pen += 0.6 }
+            if prim.contains(m) && v >= 0.8 { pen += 0.6 }
         }
         var s = sum / wsum - pen
         if ex.cat.rawValue == state.lastCat { s -= 0.1 }
@@ -165,19 +256,22 @@ extension Store {
         return s
     }
 
-    func pick(excluding: String? = nil) -> Exercise {
+    func pick(excluding: String? = nil) -> (ex: Exercise, boss: Bool) {
         let f = fatigue()
         let skip = excluding ?? state.lastEx
         var ranked = pool.filter { $0.id != skip }.map { ($0, score($0, f)) }.sorted { $0.1 > $1.1 }
         if ranked.isEmpty { ranked = pool.map { ($0, 0.0) } }
-        guard let best = ranked.first else { return Exercise.all[0] }
+        guard let best = ranked.first else { return (Exercise.all[0], false) }
+        // Kandidat für einen Boss-Satz unter den guten Optionen? Dann den nehmen.
+        let good = ranked.filter { $0.1 >= best.1 - 0.2 }
+        if let b = good.first(where: { shouldBoss($0.0, fatigue: f) }) { return (b.0, true) }
         let top = ranked.filter { $0.1 >= best.1 - 0.08 }
-        return top.randomElement()?.0 ?? best.0
+        return (top.randomElement()?.0 ?? best.0, false)
     }
 
     func why(_ ex: Exercise) -> String {
         let f = fatigue()
-        let main = ex.muscles.filter { $0.value >= 1 }.map { $0.key }.sorted { $0.rawValue < $1.rawValue }
+        let main = ex.primary
         let tired = main.filter { (f[$0] ?? 0) >= 0.8 }.map { $0.label }
         let fresh = main.filter { (f[$0] ?? 0) < 0.3 }.map { $0.label }
         if !tired.isEmpty { return "TRAINER: \(tired.joined(separator: ", ")) noch erschöpft, mach es locker." }
