@@ -9,6 +9,7 @@
 //   step      um so viel steigt das Ziel nach "Geschafft"
 //   side      true = Ziel gilt pro Seite (zählt in der Statistik doppelt)
 //   equipment null = ohne Geräte, sonst z.B. "hanteln" (erscheint dann als Schalter in den Einstellungen)
+//   retired   true = kommt nicht mehr dran, zählt aber weiter im Verlauf
 //   note      optionaler Warnhinweis
 //   cue       Ausführungshinweis
 //   muscles   { muskel: Gewicht }  1 = Hauptmuskel, 0.5 = Nebenmuskel, 0.25 = hilft mit
@@ -43,6 +44,15 @@ const MUSCLES = {
 // 3 Sekunden Halten zählen wie 1 Wiederholung
 const SECONDS_PER_REP = 3;
 
+// Tagesziel pro Muskel in gewichteten Wiederholungen (Wdh. × Muskelgewicht).
+// 100 % = der Muskel hat für heute genug gearbeitet. Große Muskeln vertragen mehr.
+// Für Woche/Monat/Jahr wird das Ziel mit den bisher vergangenen Tagen des Zeitraums multipliziert.
+const MUSCLE_TARGET = {
+  chest: 30, frontDelt: 25, rearDelt: 20, biceps: 20, triceps: 25,
+  upperBack: 25, lats: 25, abs: 30, obliques: 25, lowerBack: 25,
+  glutes: 35, quads: 35, hamstrings: 30, calves: 20,
+};
+
 const STAND = [[120,28],[120,44],[120,95],[121,122],[121,150],[119,122],[119,150],[121,70],[121,94],[119,70],[119,94]];
 const PLANK = [[176,94],[162,102],[106,124],[78,136],[50,148],[78,136],[50,148],[164,126],[165,150],[166,126],[167,150]];
 
@@ -71,7 +81,14 @@ const EXERCISES = [
     a: [[176,94],[162,102],[106,124],[78,136],[50,148],[78,136],[50,148],[164,126],[165,150],[166,126],[167,150]],
     b: [[178,124],[162,130],[106,139],[78,143],[50,148],[78,143],[50,148],[142,134],[165,150],[144,134],[167,150]] },
 
-  { id: "pike", name: "Pike Push-ups", cat: "druecken", unit: "reps", base: 5, step: 1, equipment: null,
+  { id: "closepush", name: "Enge Liegestütze", cat: "druecken", unit: "reps", base: 6, step: 1, equipment: null,
+    cue: "Hände knapp schulterbreit, Ellbogen streifen beim Runtergehen die Rippen. Fokus auf den Trizeps.",
+    muscles: { triceps: 1, chest: 0.5, frontDelt: 0.5, abs: 0.5 },
+    a: [[176,94],[162,102],[106,124],[78,136],[50,148],[78,136],[50,148],[160,126],[160,150],[162,126],[162,150]],
+    b: [[176,124],[160,130],[106,139],[78,143],[50,148],[78,143],[50,148],[136,138],[160,150],[138,138],[162,150]] },
+
+  // Aus dem Pool genommen (retired), bleibt aber für den Verlauf erhalten
+  { id: "pike", name: "Pike Push-ups", cat: "druecken", unit: "reps", base: 5, step: 1, equipment: null, retired: true,
     note: "Nur wenn sich die Schulter sicher anfühlt. Bei Unsicherheit lieber Liegestütze.",
     cue: "Po hoch, Körper wie ein umgedrehtes V. Kopf zwischen den Händen Richtung Boden senken.",
     muscles: { frontDelt: 1, triceps: 1, upperBack: 0.5, chest: 0.25 },

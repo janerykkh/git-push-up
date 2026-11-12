@@ -14,7 +14,7 @@
 <link rel="icon" href="icon-512.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800&display=swap">
-<link rel="stylesheet" href="style.css?v=3">
+<link rel="stylesheet" href="style.css?v=4">
 </head>
 <body>
 <div id="errBox" hidden style="position:fixed;left:0;right:0;bottom:0;z-index:99;background:#3a0d0d;color:#ffd6d6;font:12px/1.4 ui-monospace,Menlo,monospace;padding:10px 16px calc(10px + env(safe-area-inset-bottom,0px));white-space:pre-wrap"></div>
@@ -35,7 +35,7 @@
 
   <section class="quick" id="quick"></section>
 
-  <button class="go" id="goBtn" type="button"><span>ÜBUNG</span></button>
+  <button class="go" id="goBtn" type="button"><span>ÜBUNG</span><small id="roundInfo"></small></button>
 
   <nav class="tabs" role="tablist" id="periodSeg">
     <button type="button" data-p="day" aria-selected="true">TAG</button>
@@ -48,8 +48,19 @@
     <div class="hud tl" id="hudL">BODY SCAN</div>
     <div class="hud tr" id="hudR"></div>
     <canvas id="bodyCanvas" aria-label="Drehendes Körpermodell, trainierte Muskeln leuchten grün"></canvas>
-    <div class="hud bl">ZIEHEN ZUM DREHEN</div>
+    <div class="hud bl">TIPPEN · ZIEHEN</div>
     <div class="hud br" id="hudB"></div>
+  </section>
+
+  <section class="mInfo" id="mInfo" hidden>
+    <div class="mInfoHead">
+      <span class="mInfoName" id="mInfoName"></span>
+      <button class="gear" id="mInfoClose" type="button" aria-label="Auswahl aufheben">✕</button>
+    </div>
+    <div class="mInfoPct"><b id="mInfoPct"></b><span id="mInfoSub"></span></div>
+    <span class="meter"><i id="mInfoBar"></i></span>
+    <p class="small" id="mInfoEx"></p>
+    <button class="btn ok" id="mInfoGo" type="button"></button>
   </section>
 
   <section class="block">
@@ -165,8 +176,8 @@
   </section>
 </main>
 
-<script src="exercises.js?v=3"></script>
-<script src="body3d.js?v=3"></script>
-<script src="app.js?v=3"></script>
+<script src="exercises.js?v=4"></script>
+<script src="body3d.js?v=4"></script>
+<script src="app.js?v=4"></script>
 </body>
 </html>

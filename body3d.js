@@ -1,18 +1,15 @@
 // Drehendes Wireframe-Körpermodell. Jede Muskelgruppe ist ein Ellipsoid aus Ringen;
-// je mehr sie trainiert wurde, desto heller leuchtet sie phosphorgrün.
+// je stärker sie heute ausgelastet ist, desto heller leuchtet sie phosphorgrün.
+// Auf älteren iPhones schnell genug: pro Körperteil nur wenige Pfade, kein Canvas-Schatten.
 "use strict";
 
 const Body3D = (() => {
-  // [name | null, x, y, z, rx, ry, rz, spiegeln]
-  // Koordinaten: x nach rechts, y nach unten (0 = Scheitel, 350 = Boden), z nach vorne
+  // [name | null, x, y, z, rx, ry, rz, spiegeln]  x rechts, y unten (350 = Boden), z vorne
   const PARTS = [
-    [null, 0, 32, 0, 15, 18, 16],            // Kopf
-    [null, 0, 55, 0, 7, 8, 7],               // Hals
-    [null, 56, 160, 0, 6, 21, 6, true],      // Unterarm
-    [null, 59, 190, 0, 5, 7, 4, true],       // Hand
-    [null, 0, 182, 0, 25, 11, 15],           // Becken
-    [null, 13, 305, 3, 8, 29, 8, true],      // Schienbein
-    [null, 14, 342, 7, 7, 4, 13, true],      // Fuß
+    [null, 0, 32, 0, 15, 18, 16], [null, 0, 55, 0, 7, 8, 7],
+    [null, 56, 160, 0, 6, 21, 6, true], [null, 59, 190, 0, 5, 7, 4, true],
+    [null, 0, 182, 0, 25, 11, 15],
+    [null, 13, 305, 3, 8, 29, 8, true], [null, 14, 342, 7, 7, 4, 13, true],
     ["chest", 16, 94, 15, 15, 12, 7, true],
     ["frontDelt", 36, 79, 6, 10, 11, 9, true],
     ["rearDelt", 36, 79, -7, 10, 11, 8, true],
@@ -34,10 +31,9 @@ const Body3D = (() => {
     if (mir) parts.push({ m, c: [-x, y, z], r: [rx, ry, rz] });
   });
 
-  // Ringe (Breitengrade + Längengrade) eines Einheits-Ellipsoids, einmal vorberechnet
-  const SEG = 18;
+  const SEG = 14;
   const RINGS = [];
-  [-0.6, -0.2, 0.2, 0.6].forEach((lat) => {
+  [-0.55, 0, 0.55].forEach((lat) => {
     const y = Math.sin(lat * Math.PI / 2), rr = Math.cos(lat * Math.PI / 2);
     RINGS.push([...Array(SEG + 1)].map((_, i) => { const a = (i / SEG) * 2 * Math.PI; return [Math.cos(a) * rr, y, Math.sin(a) * rr]; }));
   });
@@ -47,88 +43,151 @@ const Body3D = (() => {
   });
 
   let canvas, ctx, W = 0, H = 0, dpr = 1;
-  let angle = -0.5, vel = 0.0035, dragging = false, lastX = 0, onAngle = null;
-  let ratio = {};
+  let angle = -0.5, spin = 0.32; // Radiant pro Sekunde
+  let dragging = false, lastX = 0, downX = 0, downY = 0, moved = 0, dragVel = 0;
+  let ratio = {}, selected = null, onAngle = null, onPick = null;
+  let lastT = 0, dirty = true;
+  let hits = [];
   const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const autoSpin = reduce ? 0.12 : 0.32; // auch bei "Bewegung reduzieren" langsam drehen
 
   function resize() {
     const r = canvas.getBoundingClientRect();
     dpr = Math.min(2, window.devicePixelRatio || 1);
     W = r.width; H = r.height;
     canvas.width = Math.round(W * dpr); canvas.height = Math.round(H * dpr);
+    dirty = true;
   }
 
-  const WIRE = [168, 221, 230], PHOS = [126, 240, 166];
-  function project(p, cosA, sinA, scale, cx, cy) {
-    // Drehen um y, dann leicht von oben schauen
-    let x = p[0] * cosA + p[2] * sinA;
-    let z = -p[0] * sinA + p[2] * cosA;
-    let y = p[1] - 185;
-    const tilt = 0.18, ct = Math.cos(tilt), st = Math.sin(tilt);
-    const y2 = y * ct - z * st, z2 = y * st + z * ct;
+  const TILT_C = Math.cos(0.18), TILT_S = Math.sin(0.18);
+  function project(x0, y0, z0, cosA, sinA, scale, cx, cy, out) {
+    const x = x0 * cosA + z0 * sinA;
+    const z = -x0 * sinA + z0 * cosA;
+    const y = y0 - 185;
+    const y2 = y * TILT_C - z * TILT_S, z2 = y * TILT_S + z * TILT_C;
     const f = 700 / (700 - z2 * 1.2);
-    return [cx + x * scale * f, cy + y2 * scale * f, z2];
+    out[0] = cx + x * scale * f; out[1] = cy + y2 * scale * f; out[2] = z2;
+    return out;
+  }
+
+  const q = [0, 0, 0], c0 = [0, 0, 0];
+  function strokePart(p, cosA, sinA, scale, cx, cy, front) {
+    ctx.beginPath();
+    for (const ring of RINGS) {
+      let pen = false;
+      for (const u of ring) {
+        project(p.c[0] + u[0] * p.r[0], p.c[1] + u[1] * p.r[1], p.c[2] + u[2] * p.r[2], cosA, sinA, scale, cx, cy, q);
+        const isFront = q[2] > p.zc - 0.5;
+        if (isFront !== front) { pen = false; continue; }
+        if (pen) ctx.lineTo(q[0], q[1]); else { ctx.moveTo(q[0], q[1]); pen = true; }
+      }
+    }
+    ctx.stroke();
+  }
+
+  function colorFor(p) {
+    if (!p.m) return { rgb: "168,221,230", a: 0.2, glow: 0 };
+    const r = Math.min(1, ratio[p.m] || 0);
+    if (p.m === selected) return { rgb: "242,168,90", a: 0.95, glow: 1 };
+    if (r <= 0) return { rgb: "168,221,230", a: 0.34, glow: 0 };
+    const mix = (a, b) => Math.round(a + (b - a) * Math.min(1, 0.3 + r));
+    return { rgb: `${mix(168, 126)},${mix(221, 240)},${mix(230, 166)}`, a: 0.45 + 0.5 * r, glow: r };
   }
 
   function draw() {
-    if (!ctx) return;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, W, H);
     const scale = Math.min(W / 260, H / 400);
     const cx = W / 2, cy = H * 0.5;
     const cosA = Math.cos(angle), sinA = Math.sin(angle);
 
-    // Bodengitter
-    ctx.lineWidth = 1;
-    ctx.strokeStyle = "rgba(168,221,230,0.10)";
+    // Bodengitter in einem Pfad
+    ctx.lineWidth = 1; ctx.strokeStyle = "rgba(168,221,230,0.10)"; ctx.beginPath();
+    const a = [0, 0, 0], b = [0, 0, 0];
     for (let i = -4; i <= 4; i++) {
-      const a = project([i * 25, 350, -100], cosA, sinA, scale, cx, cy), b = project([i * 25, 350, 100], cosA, sinA, scale, cx, cy);
-      const c = project([-100, 350, i * 25], cosA, sinA, scale, cx, cy), d = project([100, 350, i * 25], cosA, sinA, scale, cx, cy);
-      ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.moveTo(c[0], c[1]); ctx.lineTo(d[0], d[1]); ctx.stroke();
+      project(i * 25, 350, -100, cosA, sinA, scale, cx, cy, a); project(i * 25, 350, 100, cosA, sinA, scale, cx, cy, b);
+      ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]);
+      project(-100, 350, i * 25, cosA, sinA, scale, cx, cy, a); project(100, 350, i * 25, cosA, sinA, scale, cx, cy, b);
+      ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]);
     }
+    ctx.stroke();
 
-    // Hinten zuerst zeichnen
-    const order = parts.map((p) => ({ p, z: project(p.c, cosA, sinA, scale, cx, cy)[2] })).sort((a, b) => a.z - b.z);
-    order.forEach(({ p }) => {
-      const r = p.m ? (ratio[p.m] || 0) : -1;
-      let col, alpha, glow;
-      if (r < 0) { col = WIRE; alpha = 0.22; glow = 0; }
-      else if (r === 0) { col = WIRE; alpha = 0.38; glow = 0; }
-      else { col = WIRE.map((v, i) => Math.round(v + (PHOS[i] - v) * Math.min(1, 0.35 + r))); alpha = 0.5 + 0.5 * r; glow = 4 + 10 * r; }
-      ctx.lineWidth = r > 0 ? 1 + 0.6 * r : 1;
-      ctx.shadowBlur = glow; ctx.shadowColor = `rgba(${PHOS.join(",")},0.8)`;
-      RINGS.forEach((ring) => {
-        let prev = null;
-        ring.forEach((u) => {
-          const q = project([p.c[0] + u[0] * p.r[0], p.c[1] + u[1] * p.r[1], p.c[2] + u[2] * p.r[2]], cosA, sinA, scale, cx, cy);
-          if (prev) {
-            const depth = Math.max(0, Math.min(1, ((prev[2] + q[2]) / 2 + 60) / 120));
-            ctx.strokeStyle = `rgba(${col.join(",")},${(alpha * (0.35 + 0.65 * depth)).toFixed(3)})`;
-            ctx.beginPath(); ctx.moveTo(prev[0], prev[1]); ctx.lineTo(q[0], q[1]); ctx.stroke();
-          }
-          prev = q;
-        });
-      });
+    // Mittelpunkte projizieren (für Sortierung und Antippen)
+    hits = [];
+    parts.forEach((p) => {
+      project(p.c[0], p.c[1], p.c[2], cosA, sinA, scale, cx, cy, c0);
+      p.zc = c0[2]; p.sx = c0[0]; p.sy = c0[1];
+      if (p.m) hits.push({ m: p.m, x: c0[0], y: c0[1], z: c0[2], rx: Math.max(p.r[0], p.r[2]) * scale + 6, ry: p.r[1] * scale + 6 });
     });
-    ctx.shadowBlur = 0;
+    const order = parts.slice().sort((x, y) => x.zc - y.zc);
+
+    for (const p of order) {
+      const c = colorFor(p);
+      // Rückseite schwach, Vorderseite kräftig; Leuchten als breiter, durchsichtiger Strich darunter
+      ctx.lineWidth = 1; ctx.strokeStyle = `rgba(${c.rgb},${(c.a * 0.35).toFixed(3)})`;
+      strokePart(p, cosA, sinA, scale, cx, cy, false);
+      if (c.glow > 0) {
+        ctx.lineWidth = 4 + 3 * c.glow; ctx.strokeStyle = `rgba(${c.rgb},${(0.10 + 0.12 * c.glow).toFixed(3)})`;
+        strokePart(p, cosA, sinA, scale, cx, cy, true);
+      }
+      ctx.lineWidth = c.glow > 0 ? 1.3 : 1; ctx.strokeStyle = `rgba(${c.rgb},${c.a.toFixed(3)})`;
+      strokePart(p, cosA, sinA, scale, cx, cy, true);
+    }
+    if (onAngle) onAngle(angle);
   }
 
-  function loop() {
-    if (!dragging && !reduce) { angle += vel; vel += (0.0035 * Math.sign(vel || 1) - vel) * 0.02; }
-    if (canvas.isConnected && canvas.offsetParent !== null) { draw(); if (onAngle) onAngle(angle); }
+  function loop(t) {
+    const dt = lastT ? Math.min(0.1, (t - lastT) / 1000) : 0; lastT = t;
+    const visible = canvas.offsetParent !== null && document.visibilityState === "visible";
+    if (visible) {
+      if (!dragging) {
+        angle += spin * dt;
+        spin += (autoSpin * Math.sign(spin || 1) - spin) * Math.min(1, dt * 1.5); // nach Wischen sanft zurück zur Grundgeschwindigkeit
+        dirty = true;
+      }
+      if (dirty) { draw(); dirty = false; }
+    }
     requestAnimationFrame(loop);
   }
 
-  function init(el, angleCb) {
-    canvas = el; ctx = canvas.getContext("2d"); onAngle = angleCb;
+  function pickAt(px, py) {
+    let best = null;
+    hits.forEach((h) => {
+      const dx = (px - h.x) / h.rx, dy = (py - h.y) / h.ry, d = dx * dx + dy * dy;
+      if (d <= 1 && (!best || h.z > best.z + 4 || (Math.abs(h.z - best.z) <= 4 && d < best.d))) best = { ...h, d };
+    });
+    return best ? best.m : null;
+  }
+
+  function init(el, angleCb, pickCb) {
+    canvas = el; ctx = canvas.getContext("2d"); onAngle = angleCb; onPick = pickCb;
     resize();
     new ResizeObserver(resize).observe(canvas);
-    canvas.addEventListener("pointerdown", (e) => { dragging = true; lastX = e.clientX; vel = 0; canvas.setPointerCapture(e.pointerId); });
-    canvas.addEventListener("pointermove", (e) => { if (!dragging) return; const dx = e.clientX - lastX; lastX = e.clientX; angle += dx * 0.012; vel = dx * 0.012; if (reduce) draw(); });
-    const up = () => { dragging = false; if (Math.abs(vel) < 0.002) vel = 0.0035; };
-    canvas.addEventListener("pointerup", up); canvas.addEventListener("pointercancel", up);
+    canvas.addEventListener("pointerdown", (e) => {
+      dragging = true; lastX = downX = e.clientX; downY = e.clientY; moved = 0; dragVel = 0;
+      canvas.setPointerCapture(e.pointerId);
+    });
+    canvas.addEventListener("pointermove", (e) => {
+      if (!dragging) return;
+      const dx = e.clientX - lastX; lastX = e.clientX;
+      moved = Math.max(moved, Math.hypot(e.clientX - downX, e.clientY - downY));
+      angle += dx * 0.012; dragVel = dx * 0.012 * 60; dirty = true;
+    });
+    const up = (e) => {
+      if (!dragging) return;
+      dragging = false;
+      if (moved < 8) {
+        const r = canvas.getBoundingClientRect();
+        const m = pickAt(e.clientX - r.left, e.clientY - r.top);
+        selected = m === selected ? null : m; dirty = true;
+        if (onPick) onPick(selected);
+      } else if (Math.abs(dragVel) > 0.2) spin = Math.max(-6, Math.min(6, dragVel));
+    };
+    canvas.addEventListener("pointerup", up);
+    canvas.addEventListener("pointercancel", () => { dragging = false; });
     requestAnimationFrame(loop);
   }
-  function setLoad(r) { ratio = r; draw(); }
-  return { init, setLoad };
+  function setLoad(r) { ratio = r; dirty = true; }
+  function select(m) { selected = m; dirty = true; }
+  return { init, setLoad, select };
 })();

@@ -5,7 +5,7 @@ const $ = (id) => document.getElementById(id);
 const byId = Object.fromEntries(EXERCISES.map((e) => [e.id, e]));
 
 /* ---------------- Speicher ---------------- */
-const KEY = { log: "gpu-log", deleted: "gpu-deleted", last: "gpu-lastcat", backup: "gpu-backup", equip: "gpu-equip", period: "gpu-period" };
+const KEY = { deck: "gpu-deck", log: "gpu-log", deleted: "gpu-deleted", last: "gpu-lastcat", backup: "gpu-backup", equip: "gpu-equip", period: "gpu-period" };
 function load(k, fallback) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : fallback; } catch (e) { return fallback; } }
 function save(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
 
@@ -15,6 +15,8 @@ let lastCat = load(KEY.last, null);
 let backupCfg = load(KEY.backup, { repo: "janerykkh/git-push-up-private", token: "", last: 0 });
 let equipOn = load(KEY.equip, {});
 let period = load(KEY.period, "day");
+let deck = load(KEY.deck, []);
+let selMuscle = null;
 
 if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
 function persistLog() { save(KEY.log, log); }
@@ -78,6 +80,7 @@ function renderHome() {
     `<div class="q ${s > 0 ? "hot" : ""}"><span>SERIE</span><b>${s}<small>${s === 1 ? "TAG" : "TAGE"}</small></b></div>` +
     `<div class="q ${todayN > 0 ? "ok" : ""}"><span>HEUTE</span><b>${todayN}<small>ÜB.</small></b></div>` +
     `<div class="q"><span>GESCHAFFT</span><b>${rate === null ? "–" : rate}<small>${rate === null ? "" : "%"}</small></b></div>`;
+  $("roundInfo").textContent = roundText();
   $("sysline").textContent = !log.length ? "BEREIT FÜR DEN ERSTEN BUILD" : todayN ? "SYSTEME ONLINE" : "HEUTE NOCH OFFLINE";
   $("periodSeg").querySelectorAll("button").forEach((x) => x.setAttribute("aria-selected", x.dataset.p === period ? "true" : "false"));
   renderStats();
@@ -105,12 +108,13 @@ const MUSCLE_GROUPS = [
   ["RUMPF", ["abs", "obliques", "lowerBack"]],
   ["BEINE", ["glutes", "quads", "hamstrings", "calves"]],
 ];
-function status(r) {
-  if (r >= 0.66) return ["STARK", "s3"];
-  if (r >= 0.33) return ["AKTIV", "s2"];
-  if (r > 0) return ["SCHWACH", "s1"];
-  return ["OFFLINE", "s0"];
+function daysSoFar(s) { return Math.floor((startOfDay() - s) / 864e5 + 0.5) + 1; }
+function muscleRatio(entries, s) {
+  const load = muscleLoad(entries), days = daysSoFar(s);
+  return Object.fromEntries(Object.keys(MUSCLES).map((m) => [m, load[m] / (MUSCLE_TARGET[m] * days)]));
 }
+function pctClass(r) { return r >= 1 ? "p2" : r > 0 ? "p1" : ""; }
+function pctText(r) { return Math.round(r * 100) + "%"; }
 
 function renderStats() {
   const s = periodStart(period);
@@ -120,12 +124,11 @@ function renderStats() {
   const reps = Math.round(entries.reduce((a, l) => a + unitsOf(l), 0));
 
   // Körpermodell
-  const load = muscleLoad(entries);
-  const max = Math.max(...Object.values(load));
-  const ratio = Object.fromEntries(Object.entries(load).map(([m, v]) => [m, max > 0 ? v / max : 0]));
+  const ratio = muscleRatio(entries, s);
+  lastRatio = ratio;
   Body3D.setLoad(ratio);
-  const active = Object.values(ratio).filter((r) => r >= 0.33).length;
-  $("hudR").textContent = `${active}/${Object.keys(MUSCLES).length} AKTIV`;
+  const full = Object.values(ratio).filter((r) => r >= 1).length;
+  $("hudR").textContent = `${full}/${Object.keys(MUSCLES).length} AM ZIEL`;
   $("hudL").textContent = `BODY SCAN · ${PERIOD_LABEL[period]}`;
 
   // Kennzahlen
@@ -138,15 +141,19 @@ function renderStats() {
 
   // Muskelgruppen-Liste im Hangar-Stil
   $("muscles").innerHTML = MUSCLE_GROUPS.map(([g, ms]) => {
-    const on = ms.filter((m) => ratio[m] >= 0.33).length;
-    const dots = ms.map((m) => (ratio[m] >= 0.33 ? "●" : "○")).join("");
-    return `<div class="mgroup"><h3>${g} <span style="color:var(--wire)">${dots}</span></h3>` +
+    const avg = ms.reduce((a, m) => a + Math.min(1, ratio[m]), 0) / ms.length;
+    return `<div class="mgroup"><h3>${g}<b>${pctText(avg)}</b></h3>` +
       ms.map((m) => {
-        const [label, cls] = status(ratio[m]);
-        return `<div class="mrow"><span class="nm">${MUSCLES[m]}</span><span class="st ${cls}">${label}</span>` +
-          `<span class="meter st ${cls}"><i style="width:${Math.round(ratio[m] * 100)}%"></i></span></div>`;
+        const r = ratio[m], c = pctClass(r);
+        return `<div class="mrow ${selMuscle === m ? "sel" : ""}" data-m="${m}"><span class="nm">${MUSCLES[m]}</span><span class="pct ${c}">${pctText(r)}</span>` +
+          `<span class="meter"><i class="${c}" style="width:${Math.min(100, Math.round(r * 100))}%"></i></span></div>`;
       }).join("") + `</div>`;
   }).join("");
+  $("muscles").querySelectorAll(".mrow").forEach((el) => el.onclick = () => {
+    selectMuscle(selMuscle === el.dataset.m ? null : el.dataset.m);
+    if (selMuscle) $("mInfo").scrollIntoView({ behavior: "smooth", block: "center" });
+  });
+  renderMuscleInfo();
 
   renderChart(entries, s);
 
@@ -210,15 +217,70 @@ function fmtTime(ts) {
   return d.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" }) + " · " + d.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
 }
 
+/* ---------------- Muskel-Info ---------------- */
+let lastRatio = {};
+function selectMuscle(m) {
+  selMuscle = m; Body3D.select(m);
+  $("muscles").querySelectorAll(".mrow").forEach((el) => el.classList.toggle("sel", el.dataset.m === m));
+  renderMuscleInfo();
+}
+function renderMuscleInfo() {
+  const m = selMuscle;
+  $("mInfo").hidden = !m;
+  if (!m) return;
+  const r = lastRatio[m] || 0;
+  const s = periodStart(period), days = daysSoFar(s);
+  $("mInfoName").textContent = MUSCLES[m];
+  $("mInfoPct").textContent = pctText(r);
+  $("mInfoSub").textContent = period === "day"
+    ? `VOM TAGESZIEL (${MUSCLE_TARGET[m]} GEWICHTETE WDH.)`
+    : `DER TAGESZIELE IN ${days} ${days === 1 ? "TAG" : "TAGEN"}`;
+  $("mInfoBar").style.width = Math.min(100, Math.round(r * 100)) + "%";
+  const hitters = pool().filter((e) => e.muscles[m]).sort((a, b) => b.muscles[m] - a.muscles[m]);
+  const w = (x) => (x >= 1 ? "Haupt" : x >= 0.5 ? "Neben" : "hilft mit");
+  $("mInfoEx").textContent = hitters.length
+    ? "Trainiert durch: " + hitters.map((e) => `${e.name} (${w(e.muscles[m])})`).join(", ")
+    : "Keine Übung im Pool trifft diesen Muskel. Mit Hanteln kämen hier z. B. Rudern oder Bizeps-Curls dazu.";
+  const ex = bestFor(m);
+  $("mInfoGo").hidden = !ex;
+  if (ex) { $("mInfoGo").textContent = `ÜBUNG: ${ex.name.toUpperCase()}`; $("mInfoGo").onclick = () => startExercise(ex); }
+}
+$("mInfoClose").onclick = () => selectMuscle(null);
+
 /* ---------------- Übung ---------------- */
 let current = null, timer = null, anim = 0;
-function pool() { return EXERCISES.filter((e) => !e.equipment || equipOn[e.equipment]); }
+function pool() { return EXERCISES.filter((e) => !e.retired && (!e.equipment || equipOn[e.equipment])); }
+
+// Runde: jede Übung kommt einmal dran, bevor eine neue Runde beginnt
+function liveDeck() {
+  const ids = new Set(pool().map((e) => e.id));
+  deck = deck.filter((id) => ids.has(id));
+  if (!deck.length) deck = [...ids];
+  save(KEY.deck, deck);
+  return deck.map((id) => byId[id]);
+}
 function pick(excludeCats, excludeId) {
-  const all = pool();
-  let p = all.filter((e) => !excludeCats.includes(e.cat) && e.id !== excludeId);
-  if (!p.length) p = all.filter((e) => e.id !== excludeId);
-  if (!p.length) p = all;
+  const d = liveDeck();
+  let p = d.filter((e) => !excludeCats.includes(e.cat) && e.id !== excludeId);
+  if (!p.length) p = d.filter((e) => e.id !== excludeId);
+  if (!p.length) p = pool().filter((e) => e.id !== excludeId);
+  if (!p.length) p = pool();
   return p[Math.floor(Math.random() * p.length)];
+}
+function roundText() {
+  const total = pool().length, left = liveDeck().length;
+  return `RUNDE ${total - left + 1}/${total}`;
+}
+
+// Übung für einen bestimmten Muskel: die mit dem höchsten Anteil, bei Gleichstand bevorzugt noch offene aus der Runde
+function bestFor(m) {
+  const cands = pool().filter((e) => e.muscles[m]);
+  if (!cands.length) return null;
+  const top = Math.max(...cands.map((e) => e.muscles[m]));
+  const best = cands.filter((e) => e.muscles[m] === top);
+  const open = best.filter((e) => deck.includes(e.id));
+  const list = open.length ? open : best;
+  return list[Math.floor(Math.random() * list.length)];
 }
 function startExercise(ex) {
   stopTimer();
@@ -251,6 +313,7 @@ function finish(done, actual) {
   const { ex, target } = current;
   log.push({ id: uid(), ex: ex.id, cat: ex.cat, target, actual, done, ts: Date.now() });
   persistLog();
+  deck = deck.filter((id) => id !== ex.id); save(KEY.deck, deck);
   lastCat = ex.cat; save(KEY.last, lastCat);
   const u = ex.unit === "sec" ? " s" : "";
   const side = ex.side ? " pro Seite" : "";
@@ -417,10 +480,11 @@ $("undoYes").onclick = () => {
 };
 
 /* ---------------- Start ---------------- */
+let lastDeg = -1;
 Body3D.init($("bodyCanvas"), (a) => {
   const deg = ((Math.round((a * 180) / Math.PI) % 360) + 360) % 360;
-  $("hudB").textContent = `ROT ${String(deg).padStart(3, "0")}°`;
-});
+  if (deg !== lastDeg) { lastDeg = deg; $("hudB").textContent = `ROT ${String(deg).padStart(3, "0")}°`; }
+}, (m) => { selectMuscle(m); });
 show("home");
 maybeAutoBackup();
 // Offline-Cache ist vorerst aus (siehe sw.js)

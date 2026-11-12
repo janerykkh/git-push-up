@@ -142,3 +142,26 @@ ul.rows li:first-child{border-top:0}
 .confirm{display:flex;flex-direction:column;gap:10px;font-size:.84rem}
 
 @media (prefers-reduced-motion: reduce){*{animation:none!important;transition:none!important}}
+
+/* Muskel-Info nach Antippen */
+.mInfo{border:1px solid var(--amber);border-radius:4px;padding:14px;display:flex;flex-direction:column;gap:10px;background:rgba(242,168,90,0.05);margin-top:-8px}
+.mInfoHead{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.mInfoName{font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--amber);text-shadow:0 0 10px rgba(242,168,90,0.45)}
+.mInfoPct{display:flex;align-items:baseline;gap:10px}
+.mInfoPct b{font-size:2.2rem;line-height:1;font-weight:800;font-variant-numeric:tabular-nums}
+.mInfoPct span{font-size:.74rem;color:var(--muted);letter-spacing:.06em}
+.mInfo .meter{display:block;height:4px;background:var(--line);border-radius:2px;overflow:hidden}
+.mInfo .meter i{display:block;height:100%;background:var(--phos);box-shadow:0 0 8px rgba(126,240,166,0.6)}
+
+/* Muskelgruppen mit Prozent */
+.mrow{cursor:pointer;border-radius:3px}
+.mrow.sel .nm{color:var(--amber)}
+.mrow .pct{font-size:.8rem;font-weight:700;font-variant-numeric:tabular-nums;align-self:center;color:var(--muted)}
+.mrow .pct.p1{color:var(--wire)}
+.mrow .pct.p2{color:var(--phos);text-shadow:0 0 8px rgba(126,240,166,0.5)}
+.mrow .meter{grid-column:1/-1;height:3px;background:var(--line);border-radius:2px;overflow:hidden}
+.mrow .meter i{display:block;height:100%;background:var(--wire)}
+.mrow .meter i.p2{background:var(--phos);box-shadow:0 0 6px rgba(126,240,166,0.6)}
+.mgroup h3 b{color:var(--wire);font-weight:700;margin-left:6px}
+.go{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:10px 0}
+.go small{font-size:.62rem;font-weight:500;letter-spacing:.2em;text-indent:.2em;color:var(--muted);text-shadow:none}
