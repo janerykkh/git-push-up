@@ -8,7 +8,7 @@
 //   base      Startziel beim ersten Mal
 //   marker    welcher Rekordtag-Test das Maximum dieser Übung bestimmt
 //   factor    Maximum dieser Übung ≈ Marker-Maximum × factor (Faustwert)
-//   cap       Obergrenze fürs Ziel, damit eine Übung in etwa eine Minute passt
+//   cap       so viel passt in etwa eine Minute; ein höheres Ziel wird auf mehrere Sätze verteilt
 //   step      kleinste Steigerung (Wiederholungen bzw. Sekunden)
 //   side      true = Ziel gilt pro Seite (zählt in der Statistik doppelt)
 //   equipment null = ohne Geräte, sonst z.B. "hanteln" (erscheint dann als Schalter in den Einstellungen)

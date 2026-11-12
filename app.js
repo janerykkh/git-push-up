@@ -36,7 +36,6 @@ function estMax(ex) {
   return Math.max(1, markerValue(ex.marker) * (ex.factor || 1));
 }
 function roundTarget(ex, v) {
-  if (ex.cap) v = Math.min(ex.cap, v);
   return ex.unit === "sec" ? Math.max(10, Math.round(v / 5) * 5) : Math.max(1, Math.round(v));
 }
 function targetFor(ex) {
@@ -356,21 +355,53 @@ function renderChart(entries, s) {
 }
 
 /* ---------------- Übung ---------------- */
-let current = null, timer = null;
+let current = null, timer = null, restTimer = null;
+// Passt das Ziel nicht in etwa eine Minute (cap), wird es auf gleich große Sätze verteilt
+function setsFor(ex, target) {
+  const n = ex.cap && target > ex.cap ? Math.ceil(target / ex.cap) : 1;
+  let per = Math.ceil(target / n);
+  if (ex.unit === "sec") per = Math.ceil(per / 5) * 5;
+  return { n, per };
+}
+const REST_SEC = 30;
+function renderSets() {
+  const { n } = current.sets;
+  $("setRow").hidden = n < 1 || n === 1;
+  $("setRow").innerHTML = [...Array(n)].map((_, i) =>
+    `<button type="button" class="setChip ${i < current.setsDone ? "on" : ""}" data-i="${i}">SATZ ${i + 1}${i < current.setsDone ? " ✓" : ""}</button>`).join("") +
+    `<span class="rest" id="restVal"></span>`;
+  $("setRow").querySelectorAll(".setChip").forEach((b) => b.onclick = () => {
+    const i = +b.dataset.i;
+    current.setsDone = i < current.setsDone ? i : i + 1;
+    renderSets();
+    if (current.setsDone < n && current.setsDone === i + 1) startRest();
+  });
+}
+function startRest() {
+  clearInterval(restTimer);
+  let left = REST_SEC;
+  const tick = () => { const el = $("restVal"); if (el) el.textContent = left > 0 ? `PAUSE ${left} s` : "WEITER"; if (left-- <= 0) clearInterval(restTimer); };
+  tick(); restTimer = setInterval(tick, 1000);
+}
 function startExercise(ex) {
   stopTimer();
-  current = { ex, target: targetFor(ex) };
+  const target = targetFor(ex);
+  current = { ex, target, sets: setsFor(ex, target), setsDone: 0 };
+  clearInterval(restTimer);
   $("exercise").style.setProperty("--c", `var(--${ex.cat})`);
   $("exCat").textContent = CATEGORIES[ex.cat].label.toUpperCase();
   $("exName").textContent = ex.name;
-  $("exTarget").textContent = current.target;
-  $("exUnit").textContent = (ex.unit === "sec" ? "SEKUNDEN HALTEN" : "WIEDERHOLUNGEN") + (ex.side ? " PRO SEITE" : "");
+  const multi = current.sets.n > 1;
+  $("exTarget").textContent = multi ? `${current.sets.n}×${current.sets.per}` : current.target;
+  $("exUnit").textContent = (ex.unit === "sec" ? "SEKUNDEN HALTEN" : "WIEDERHOLUNGEN") + (multi ? " PRO SATZ" : "") + (ex.side ? (multi ? ", PRO SEITE" : " PRO SEITE") : "") +
+    (multi ? ` · ${REST_SEC} s PAUSE` : "");
+  renderSets();
   $("exCue").textContent = ex.cue;
   $("exNote").hidden = !ex.note; $("exNote").textContent = ex.note || "";
   $("exWhy").textContent = whyText(ex);
   $("timerRow").hidden = ex.unit !== "sec"; $("timerVal").textContent = "0 s"; $("timerBtn").textContent = "TIMER STARTEN";
   $("doneRow").hidden = false; $("partialForm").hidden = true; $("skipBtn").hidden = false;
-  $("partialLabel").textContent = ex.unit === "sec" ? "Wie viele Sekunden hast du gehalten?" : "Wie viele Wiederholungen hast du geschafft?";
+  $("partialLabel").textContent = (ex.unit === "sec" ? "Wie viele Sekunden hast du gehalten?" : "Wie viele Wiederholungen hast du geschafft?") + (current.sets.n > 1 ? " (alle Sätze zusammen)" : "");
   $("partialIn").value = "";
   drawFigure(ex, $("figure"));
   show("exercise");
@@ -379,22 +410,24 @@ $("goBtn").onclick = () => { if (!trainer.baselineDate) { show("record"); return
 $("recBanner").onclick = () => show("record");
 $("skipBtn").onclick = () => startExercise(trainerPick(current.ex.id));
 $("exClose").onclick = () => { stopTimer(); show("home"); };
-$("okBtn").onclick = () => finish(true, current.target);
+$("okBtn").onclick = () => finish(true, current.sets.n * current.sets.per);
 $("noBtn").onclick = () => { stopTimer(); $("doneRow").hidden = true; $("skipBtn").hidden = true; $("partialForm").hidden = false; setTimeout(() => $("partialIn").focus(), 50); };
 $("partialForm").addEventListener("submit", (e) => { e.preventDefault(); finish(false, Math.max(0, parseInt($("partialIn").value, 10) || 0)); });
 $("toSettings").onclick = () => show("settings");
 $("settingsBack").onclick = () => show("home");
 
 function finish(done, actual) {
-  stopTimer();
-  const { ex, target } = current;
-  log.push({ id: uid(), ex: ex.id, cat: ex.cat, target, actual, done, ts: Date.now() });
+  stopTimer(); clearInterval(restTimer);
+  const { ex, sets } = current;
+  const target = sets.n * sets.per;
+  log.push({ id: uid(), ex: ex.id, cat: ex.cat, target, actual, done, sets: sets.n, ts: Date.now() });
   persistLog();
   deck = deck.filter((id) => id !== ex.id); save(KEY.deck, deck);
   lastCat = ex.cat; save(KEY.last, lastCat);
   const u = ex.unit === "sec" ? " s" : "";
   const side = ex.side ? " pro Seite" : "";
-  showDone(done ? "INSTALLED" : "LOGGED", !done, done ? `${target}${u} ${ex.name}${side}` : `${actual} von ${target}${u} ${ex.name}`);
+  const shown = sets.n > 1 ? `${sets.n}×${sets.per}${u}` : `${target}${u}`;
+  showDone(done ? "INSTALLED" : "LOGGED", !done, done ? `${shown} ${ex.name}${side}` : `${actual} von ${target}${u} ${ex.name}`);
   maybeAutoBackup();
 }
 function showDone(stamp, partly, text) {
@@ -417,7 +450,7 @@ function runTimer(btn, valEl, inputEl, goal) {
     inputEl.value = s;
   }, 250);
 }
-$("timerBtn").onclick = () => runTimer($("timerBtn"), $("timerVal"), $("partialIn"), current.target);
+$("timerBtn").onclick = () => runTimer($("timerBtn"), $("timerVal"), $("partialIn"), current.sets.per);
 
 /* ---------------- Rekordtag ---------------- */
 let recSel = null;

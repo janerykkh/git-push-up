@@ -180,3 +180,7 @@ ul.rows li:first-child{border-top:0}
 .go.rec::before,.go.rec::after{background:var(--amber)}
 .mrow .rec{font-size:.68rem;color:var(--dim);grid-column:1/-1;margin-top:-2px}
 .why{margin:0;font-size:.72rem;letter-spacing:.08em;color:var(--wire);opacity:.8}
+.setRow{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.setChip{border:1px solid var(--line2);border-radius:3px;padding:8px 12px;font-size:.74rem;font-weight:700;letter-spacing:.12em;color:var(--muted);min-height:40px}
+.setChip.on{border-color:var(--c);color:var(--c)}
+.rest{font-size:.78rem;letter-spacing:.12em;color:var(--amber);font-variant-numeric:tabular-nums}
