@@ -6,155 +6,162 @@
 <title>git push-up</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
 <meta name="apple-mobile-web-app-title" content="push-up">
-<meta name="theme-color" content="#eef1f3" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#151b20" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#04070a">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icon-180.png">
 <link rel="icon" href="icon-512.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Inter:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800&display=swap">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
-<!-- START -->
-<main id="home" class="screen home">
-  <button class="topLink" id="toStats" type="button">Statistik</button>
-  <button class="bigBtn" id="goBtn" type="button">ÜBUNG</button>
-  <p class="homeInfo" id="homeInfo"></p>
+<!-- START + STATISTIK -->
+<main id="home" class="screen">
+  <header class="bar">
+    <span class="brand">GIT PUSH-UP</span>
+    <span class="sysline" id="sysline"></span>
+    <button class="gear" id="toSettings" type="button" aria-label="Einstellungen">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="3.2"/><path d="M12 2.5v2.6M12 18.9v2.6M21.5 12h-2.6M5.1 12H2.5M18.7 5.3l-1.8 1.8M7.1 16.9l-1.8 1.8M18.7 18.7l-1.8-1.8M7.1 7.1 5.3 5.3"/></svg>
+    </button>
+  </header>
+
+  <section class="quick" id="quick"></section>
+
+  <button class="go" id="goBtn" type="button"><span>ÜBUNG</span></button>
+
+  <nav class="tabs" role="tablist" id="periodSeg">
+    <button type="button" data-p="day" aria-selected="true">TAG</button>
+    <button type="button" data-p="week">WOCHE</button>
+    <button type="button" data-p="month">MONAT</button>
+    <button type="button" data-p="year">JAHR</button>
+  </nav>
+
+  <section class="hangar">
+    <div class="hud tl" id="hudL">BODY SCAN</div>
+    <div class="hud tr" id="hudR"></div>
+    <canvas id="bodyCanvas" aria-label="Drehendes Körpermodell, trainierte Muskeln leuchten grün"></canvas>
+    <div class="hud bl">ZIEHEN ZUM DREHEN</div>
+    <div class="hud br" id="hudB"></div>
+  </section>
+
+  <section class="block">
+    <div class="kpis" id="kpis"></div>
+  </section>
+
+  <section class="block">
+    <h2>MUSKELGRUPPEN</h2>
+    <div id="muscles"></div>
+  </section>
+
+  <section class="block">
+    <h2 id="chartTitle">AKTIVITÄT</h2>
+    <div class="chart" id="chart"></div>
+  </section>
+
+  <section class="block">
+    <h2>KATEGORIEN</h2>
+    <div class="catBars" id="catBars"></div>
+  </section>
+
+  <section class="block">
+    <h2>FORTSCHRITT</h2>
+    <ul class="rows" id="progress"></ul>
+  </section>
+
+  <section class="block">
+    <h2>VERLAUF</h2>
+    <ul class="rows" id="log"></ul>
+  </section>
+  <p class="foot">* Halteübungen: 1 Wdh. pro 3 s · Übungen pro Seite zählen doppelt</p>
 </main>
 
 <!-- ÜBUNG -->
 <main id="exercise" class="screen" hidden>
-  <div class="exTop">
+  <header class="bar">
     <span class="cat" id="exCat"></span>
-    <button class="textBtn" id="exClose" type="button" aria-label="Zurück zum Start">✕</button>
-  </div>
+    <span></span>
+    <button class="gear" id="exClose" type="button" aria-label="Zurück">✕</button>
+  </header>
   <h1 class="exName" id="exName"></h1>
   <div class="figure" id="figure"></div>
   <div class="target"><b id="exTarget"></b><span id="exUnit"></span></div>
   <p class="cue" id="exCue"></p>
   <p class="note" id="exNote" hidden></p>
   <div class="timerRow" id="timerRow" hidden>
-    <button id="timerBtn" type="button">Timer starten</button>
+    <button class="btn" id="timerBtn" type="button">TIMER STARTEN</button>
     <span class="timer" id="timerVal">0 s</span>
   </div>
   <div class="actions" id="doneRow">
-    <button class="ok" id="okBtn" type="button">Geschafft</button>
-    <button class="no" id="noBtn" type="button">Nicht geschafft</button>
+    <button class="btn ok" id="okBtn" type="button">GESCHAFFT</button>
+    <button class="btn" id="noBtn" type="button">NICHT GESCHAFFT</button>
   </div>
   <form class="partial" id="partialForm" hidden>
     <label for="partialIn" id="partialLabel">Wie viele hast du geschafft?</label>
     <div class="partialRow">
       <input id="partialIn" type="number" inputmode="numeric" min="0" step="1" required>
-      <button class="ok" type="submit">Speichern</button>
+      <button class="btn ok" type="submit">SPEICHERN</button>
     </div>
   </form>
-  <button class="textBtn skip" id="skipBtn" type="button">Passt gerade nicht</button>
+  <button class="link" id="skipBtn" type="button">passt gerade nicht</button>
 </main>
 
 <!-- FERTIG -->
 <main id="done" class="screen done" hidden>
-  <div class="check" id="doneIcon">✓</div>
+  <div class="stamp" id="doneIcon">INSTALLED</div>
   <p class="doneText" id="doneText"></p>
 </main>
 
-<!-- STATISTIK -->
-<main id="stats" class="screen stats" hidden>
-  <div class="statsTop">
-    <button class="textBtn" id="statsBack" type="button">← Start</button>
-    <h1>Statistik</h1>
-    <button class="textBtn" id="toSettings" type="button">Einstellungen</button>
-  </div>
-
-  <div class="seg" role="tablist" id="periodSeg">
-    <button type="button" data-p="day" aria-selected="true">Tag</button>
-    <button type="button" data-p="week">Woche</button>
-    <button type="button" data-p="month">Monat</button>
-    <button type="button" data-p="year">Jahr</button>
-  </div>
-
-  <section class="panel">
-    <div class="kpis" id="kpis"></div>
-  </section>
-
-  <section class="panel">
-    <div class="panelHead"><h2>Muskeln</h2><span class="hint">Tippe auf einen Muskel</span></div>
-    <div class="bodyWrap" id="bodyMap"></div>
-    <p class="muscleInfo" id="muscleInfo">Je grüner, desto mehr hat der Muskel im Zeitraum gearbeitet, im Vergleich zum meisttrainierten.</p>
-    <div class="weak" id="weak"></div>
-  </section>
-
-  <section class="panel">
-    <h2 id="chartTitle">Übungen</h2>
-    <div class="chart" id="chart"></div>
-  </section>
-
-  <section class="panel">
-    <h2>Kategorien</h2>
-    <div class="catBars" id="catBars"></div>
-  </section>
-
-  <section class="panel">
-    <h2>Fortschritt pro Übung</h2>
-    <ul class="progress" id="progress"></ul>
-  </section>
-
-  <section class="panel">
-    <h2>Verlauf</h2>
-    <ul class="log" id="log"></ul>
-  </section>
-</main>
-
 <!-- EINSTELLUNGEN -->
-<main id="settings" class="screen stats" hidden>
-  <div class="statsTop">
-    <button class="textBtn" id="settingsBack" type="button">← Statistik</button>
-    <h1>Einstellungen</h1>
+<main id="settings" class="screen" hidden>
+  <header class="bar">
+    <button class="link" id="settingsBack" type="button">← ZURÜCK</button>
+    <span class="brand">EINSTELLUNGEN</span>
     <span></span>
-  </div>
+  </header>
 
-  <section class="panel">
-    <h2>Backup auf GitHub</h2>
+  <section class="block">
+    <h2>BACKUP AUF GITHUB</h2>
     <p class="small">Sichert deinen Verlauf einmal am Tag in dein privates Repo. Der Schlüssel bleibt nur auf diesem Gerät.</p>
-    <label class="field">Repo
+    <label class="field">REPO
       <input id="bkRepo" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="janerykkh/git-push-up-private">
     </label>
-    <label class="field">Token
+    <label class="field">TOKEN
       <input id="bkToken" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="github_pat_…">
     </label>
     <div class="actions">
-      <button class="ok" id="bkSave" type="button">Speichern &amp; sichern</button>
-      <button class="no" id="bkRestore" type="button">Aus Backup laden</button>
+      <button class="btn ok" id="bkSave" type="button">SPEICHERN &amp; SICHERN</button>
+      <button class="btn" id="bkRestore" type="button">AUS BACKUP LADEN</button>
     </div>
     <p class="small" id="bkStatus"></p>
   </section>
 
-  <section class="panel" id="equipPanel" hidden>
-    <h2>Geräte</h2>
+  <section class="block" id="equipPanel" hidden>
+    <h2>GERÄTE</h2>
     <p class="small">Übungen mit diesen Geräten kommen nur, wenn sie eingeschaltet sind.</p>
     <div id="equipList"></div>
   </section>
 
-  <section class="panel">
-    <h2>Daten</h2>
+  <section class="block">
+    <h2>DATEN</h2>
     <p class="small" id="dataInfo"></p>
     <div class="actions">
-      <button class="no" id="undoBtn" type="button">Letzten Eintrag löschen</button>
+      <button class="btn" id="undoBtn" type="button">LETZTEN EINTRAG LÖSCHEN</button>
     </div>
     <div class="confirm" id="undoConfirm" hidden>
       <span id="undoText"></span>
       <div class="actions">
-        <button class="danger" id="undoYes" type="button">Löschen</button>
-        <button class="no" id="undoNo" type="button">Abbrechen</button>
+        <button class="btn danger" id="undoYes" type="button">LÖSCHEN</button>
+        <button class="btn" id="undoNo" type="button">ABBRECHEN</button>
       </div>
     </div>
   </section>
 </main>
 
 <script src="exercises.js"></script>
+<script src="body3d.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
