@@ -1,10 +1,9 @@
 import SwiftUI
 import AVFoundation
-import AudioToolbox
 import UIKit
 
-/// Puls zählen: beim ersten Schlag "leiser + lauter" drücken (dabei "null" denken), still zehn Schläge zählen,
-/// beim zehnten wieder "leiser + lauter". Aus der Zeit dazwischen ergibt sich der Puls. Geht auch über den Knopf.
+/// Puls zählen: beim ersten Schlag beide Lautstärketasten drücken (dabei "null" denken), still zehn Schläge zählen,
+/// beim zehnten wieder beide. Aus der Zeit dazwischen ergibt sich der Puls. Geht auch gesperrt und über den Knopf.
 struct PulseView: View {
     @EnvironmentObject var store: Store
     let onClose: () -> Void
@@ -33,11 +32,11 @@ struct PulseView: View {
 
                 VStack(alignment: .leading, spacing: 8) {
                     step("1", "Puls am Hals oder Handgelenk fühlen.")
-                    step("2", "Beim nächsten Schlag kurz LEISER + LAUTER drücken und dabei „null“ denken.")
-                    step("3", "Still bis zehn zählen, beim zehnten Schlag wieder LEISER + LAUTER.")
+                    step("2", "Beim nächsten Schlag BEIDE LAUTSTÄRKETASTEN gleichzeitig drücken und dabei „null“ denken. Es piept.")
+                    step("3", "Still bis zehn zählen, beim zehnten Schlag wieder beide Tasten. Die App sagt die Zahl an.")
                 }
 
-                Text("Geht mit den Tasten am iPhone oder den Plus-Minus-Tasten der EarPods. Normales Lauter- oder Leiserstellen löst nichts aus, und die Lautstärke ist danach wie vorher.")
+                Text("Geht mit den Tasten am iPhone oder den Plus-Minus-Tasten der EarPods, auch bei gesperrtem Bildschirm, solange dieser Bildschirm offen ist. Leiser und lauter kurz hintereinander geht auch. Normales Lauter- oder Leiserstellen löst nichts aus.")
                     .font(mono(11)).foregroundStyle(Color.muted).fixedSize(horizontal: false, vertical: true)
 
                 if trigger.volume <= 0.07 || trigger.volume >= 0.93 {
@@ -97,7 +96,7 @@ struct PulseView: View {
                         Text("BPM").font(mono(14)).foregroundStyle(Color.muted)
                     }
                 }
-                Label12(text: running == nil ? "BEREIT · WARTE AUF LEISER + LAUTER" : "BEIM ZEHNTEN SCHLAG WIEDER DRÜCKEN",
+                Label12(text: running == nil ? "BEREIT · BEIDE TASTEN ZUM STARTEN" : "BEIM ZEHNTEN SCHLAG WIEDER BEIDE TASTEN",
                         color: running == nil ? .muted : .amber)
             }
             .onChange(of: running.map { $0 > timeout } ?? false) { tooLong in
@@ -112,13 +111,14 @@ struct PulseView: View {
             let dt = at.timeIntervalSince(s)
             let bpm = Int((beats / dt * 60).rounded())
             guard dt > 0, bpm >= 30, bpm <= 230 else {
-                AudioServicesPlaySystemSound(1053)
+                trigger.beep()
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { trigger.beep() }
                 return
             }
             save(bpm)
         } else {
             startedAt = at
-            AudioServicesPlaySystemSound(1104)
+            trigger.beep()
             UIImpactFeedbackGenerator(style: .medium).impactOccurred()
         }
     }
@@ -130,7 +130,7 @@ struct PulseView: View {
         lastResult = bpm
         UINotificationFeedbackGenerator().notificationOccurred(.success)
         if speak {
-            let u = AVSpeechUtterance(string: "Puls \(bpm)")
+            let u = AVSpeechUtterance(string: "\(bpm)")
             u.voice = AVSpeechSynthesisVoice(language: "de-DE")
             synth.speak(u)
         }
