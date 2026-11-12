@@ -184,3 +184,8 @@ ul.rows li:first-child{border-top:0}
 .setChip{border:1px solid var(--line2);border-radius:3px;padding:8px 12px;font-size:.74rem;font-weight:700;letter-spacing:.12em;color:var(--muted);min-height:40px}
 .setChip.on{border-color:var(--c);color:var(--c)}
 .rest{font-size:.78rem;letter-spacing:.12em;color:var(--amber);font-variant-numeric:tabular-nums}
+
+/* Nichts darf die Seite seitlich verschiebbar machen */
+html,body{overflow-x:hidden;max-width:100%}
+.figure,.hangar{overflow:hidden}
+.figure svg{overflow:hidden}
