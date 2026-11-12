@@ -26,21 +26,22 @@ struct BodyScanView: View {
                 }
             }
             .contentShape(Rectangle())
-            .gesture(
-                DragGesture(minimumDistance: 0)
+            // Nur waagerechtes Wischen dreht das Modell; senkrecht scrollt die Seite ganz normal weiter
+            .simultaneousGesture(
+                DragGesture(minimumDistance: 12)
                     .onChanged { v in
-                        if dragBase == nil { dragBase = dragOffset }
+                        if dragBase == nil {
+                            guard Swift.abs(v.translation.width) > Swift.abs(v.translation.height) else { return }
+                            dragBase = dragOffset - Double(v.translation.width) * 0.012
+                        }
                         dragOffset = (dragBase ?? 0) + Double(v.translation.width) * 0.012
                     }
-                    .onEnded { v in
-                        let moved = hypot(v.translation.width, v.translation.height)
-                        dragBase = nil
-                        if moved < 8 {
-                            let m = BodyModel.pick(at: v.location, size: geo.size, angle: currentAngle(Date()))
-                            selected = (m == selected) ? nil : m
-                        }
-                    }
+                    .onEnded { _ in dragBase = nil }
             )
+            .onTapGesture(coordinateSpace: .local) { loc in
+                let m = BodyModel.pick(at: loc, size: geo.size, angle: currentAngle(Date()))
+                selected = (m == selected) ? nil : m
+            }
         }
         .aspectRatio(1 / 1.05, contentMode: .fit)
     }

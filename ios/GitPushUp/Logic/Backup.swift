@@ -66,7 +66,13 @@ extension Store {
         var map: [String: LogEntry] = [:]
         for l in state.log + (remote.entries ?? []) where !del.contains(l.id) { map[l.id] = l }
         state.log = map.values.sorted { $0.ts < $1.ts }
-        if let t = remote.trainer, t.updated > state.trainer.updated { state.trainer = t }
+        // Trainer: eine echte Baseline schlägt immer eine leere; sonst gewinnt der neuere Stand
+        if let t = remote.trainer {
+            let remoteHas = t.baselineDate > 0, localHas = state.trainer.baselineDate > 0
+            if (remoteHas && !localHas) || (remoteHas == localHas && t.updated > state.trainer.updated) {
+                state.trainer = t
+            }
+        }
         save()
     }
 
