@@ -165,3 +165,18 @@ ul.rows li:first-child{border-top:0}
 .mgroup h3 b{color:var(--wire);font-weight:700;margin-left:6px}
 .go{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:10px 0}
 .go small{font-size:.62rem;font-weight:500;letter-spacing:.2em;text-indent:.2em;color:var(--muted);text-shadow:none}
+
+/* Trainer / Rekordtag */
+.panelHead{display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap}
+.recBanner{width:100%;border:1px dashed var(--amber);border-radius:4px;padding:12px 14px;color:var(--amber);text-align:left;
+  font-weight:700;letter-spacing:.12em;font-size:.8rem;background:rgba(242,168,90,0.06);display:flex;justify-content:space-between;gap:10px}
+.recBanner span{color:var(--muted);font-weight:500;letter-spacing:.06em}
+.recList li{cursor:pointer}
+.recList li.done .num{color:var(--phos)}
+.recList li.sel{background:rgba(242,168,90,0.06)}
+.recTest{display:flex;flex-direction:column;gap:14px;border-top:1px solid var(--line2);padding-top:14px}
+.pr{color:var(--amber);font-weight:700}
+.go.rec{border-color:var(--amber);color:var(--amber);background:rgba(242,168,90,0.08);text-shadow:0 0 12px rgba(242,168,90,0.6)}
+.go.rec::before,.go.rec::after{background:var(--amber)}
+.mrow .rec{font-size:.68rem;color:var(--dim);grid-column:1/-1;margin-top:-2px}
+.why{margin:0;font-size:.72rem;letter-spacing:.08em;color:var(--wire);opacity:.8}

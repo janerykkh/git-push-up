@@ -14,7 +14,7 @@
 <link rel="icon" href="icon-512.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800&display=swap">
-<link rel="stylesheet" href="style.css?v=4">
+<link rel="stylesheet" href="style.css?v=7">
 </head>
 <body>
 <div id="errBox" hidden style="position:fixed;left:0;right:0;bottom:0;z-index:99;background:#3a0d0d;color:#ffd6d6;font:12px/1.4 ui-monospace,Menlo,monospace;padding:10px 16px calc(10px + env(safe-area-inset-bottom,0px));white-space:pre-wrap"></div>
@@ -35,19 +35,14 @@
 
   <section class="quick" id="quick"></section>
 
-  <button class="go" id="goBtn" type="button"><span>ÜBUNG</span><small id="roundInfo"></small></button>
+  <button class="recBanner" id="recBanner" type="button" hidden></button>
 
-  <nav class="tabs" role="tablist" id="periodSeg">
-    <button type="button" data-p="day" aria-selected="true">TAG</button>
-    <button type="button" data-p="week">WOCHE</button>
-    <button type="button" data-p="month">MONAT</button>
-    <button type="button" data-p="year">JAHR</button>
-  </nav>
+  <button class="go" id="goBtn" type="button"><span id="goLabel">ÜBUNG</span><small id="roundInfo"></small></button>
 
   <section class="hangar">
-    <div class="hud tl" id="hudL">BODY SCAN</div>
+    <div class="hud tl">BODY SCAN · JETZT</div>
     <div class="hud tr" id="hudR"></div>
-    <canvas id="bodyCanvas" aria-label="Drehendes Körpermodell, trainierte Muskeln leuchten grün"></canvas>
+    <canvas id="bodyCanvas" aria-label="Drehendes Körpermodell, erschöpfte Muskeln leuchten grün"></canvas>
     <div class="hud bl">TIPPEN · ZIEHEN</div>
     <div class="hud br" id="hudB"></div>
   </section>
@@ -64,12 +59,19 @@
   </section>
 
   <section class="block">
-    <div class="kpis" id="kpis"></div>
+    <div class="panelHead"><h2>AUSLASTUNG</h2><span class="small">grün = erschöpft, dunkel = erholt</span></div>
+    <div id="muscles"></div>
   </section>
 
+  <nav class="tabs" role="tablist" id="periodSeg">
+    <button type="button" data-p="day" aria-selected="true">TAG</button>
+    <button type="button" data-p="week">WOCHE</button>
+    <button type="button" data-p="month">MONAT</button>
+    <button type="button" data-p="year">JAHR</button>
+  </nav>
+
   <section class="block">
-    <h2>MUSKELGRUPPEN</h2>
-    <div id="muscles"></div>
+    <div class="kpis" id="kpis"></div>
   </section>
 
   <section class="block">
@@ -83,7 +85,7 @@
   </section>
 
   <section class="block">
-    <h2>FORTSCHRITT</h2>
+    <div class="panelHead"><h2>ZIELE &amp; REKORDE</h2><span class="small" id="reviewInfo"></span></div>
     <ul class="rows" id="progress"></ul>
   </section>
 
@@ -92,6 +94,34 @@
     <ul class="rows" id="log"></ul>
   </section>
   <p class="foot">* Halteübungen: 1 Wdh. pro 3 s · Übungen pro Seite zählen doppelt</p>
+</main>
+
+<!-- REKORDTAG -->
+<main id="record" class="screen" hidden>
+  <header class="bar">
+    <button class="link" id="recBack" type="button">← ZURÜCK</button>
+    <span class="brand" style="color:var(--amber)">REKORDTAG</span>
+    <span></span>
+  </header>
+  <p class="small" id="recIntro">Vier kurze Tests. Jeweils so viel wie sauber geht, dann aufhören. Zwischen den Tests 2–3 Minuten Pause. Du musst nicht alle auf einmal machen, heute reicht.</p>
+  <ul class="rows recList" id="recList"></ul>
+  <div id="recTest" class="recTest" hidden>
+    <h1 class="exName" id="recName"></h1>
+    <div class="figure" id="recFigure"></div>
+    <p class="cue" id="recHow"></p>
+    <div class="timerRow" id="recTimerRow" hidden>
+      <button class="btn" id="recTimerBtn" type="button">TIMER STARTEN</button>
+      <span class="timer" id="recTimerVal">0 s</span>
+    </div>
+    <form class="partial" id="recForm">
+      <label for="recIn" id="recLabel">Wie viele hast du geschafft?</label>
+      <div class="partialRow">
+        <input id="recIn" type="number" inputmode="numeric" min="1" step="1" required>
+        <button class="btn ok" type="submit">SPEICHERN</button>
+      </div>
+    </form>
+  </div>
+  <button class="btn ok" id="recFinish" type="button" hidden>REKORDTAG ABSCHLIESSEN</button>
 </main>
 
 <!-- ÜBUNG -->
@@ -106,6 +136,7 @@
   <div class="target"><b id="exTarget"></b><span id="exUnit"></span></div>
   <p class="cue" id="exCue"></p>
   <p class="note" id="exNote" hidden></p>
+  <p class="why" id="exWhy"></p>
   <div class="timerRow" id="timerRow" hidden>
     <button class="btn" id="timerBtn" type="button">TIMER STARTEN</button>
     <span class="timer" id="timerVal">0 s</span>
@@ -161,6 +192,12 @@
   </section>
 
   <section class="block">
+    <h2>REKORDTAG</h2>
+    <p class="small" id="recSettingsInfo"></p>
+    <div class="actions"><button class="btn" id="recNow" type="button">REKORDTAG JETZT MACHEN</button></div>
+  </section>
+
+  <section class="block">
     <h2>DATEN</h2>
     <p class="small" id="dataInfo"></p>
     <div class="actions">
@@ -176,8 +213,8 @@
   </section>
 </main>
 
-<script src="exercises.js?v=4"></script>
-<script src="body3d.js?v=4"></script>
-<script src="app.js?v=4"></script>
+<script src="exercises.js?v=7"></script>
+<script src="body3d.js?v=7"></script>
+<script src="app.js?v=7"></script>
 </body>
 </html>
