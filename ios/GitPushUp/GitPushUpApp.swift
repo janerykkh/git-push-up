@@ -1,0 +1,94 @@
+import SwiftUI
+import UIKit
+
+@main
+struct GitPushUpApp: App {
+    @StateObject private var store = Store()
+
+    var body: some Scene {
+        WindowGroup {
+            RootView()
+                .environmentObject(store)
+                .preferredColorScheme(.dark)
+        }
+    }
+}
+
+/// Steuert, welcher Bildschirm gerade oben liegt
+struct RootView: View {
+    @EnvironmentObject var store: Store
+    @Environment(\.scenePhase) private var scenePhase
+
+    @State private var exercise: Exercise? = nil
+    @State private var showRecord = false
+    @State private var showSettings = false
+    @State private var done: DoneInfo? = nil
+
+    struct DoneInfo: Equatable { let stamp: String; let text: String; let partly: Bool }
+
+    var body: some View {
+        ZStack {
+            HomeView(
+                onGo: { exercise = store.pick() },
+                onExercise: { exercise = $0 },
+                onRecord: { showRecord = true },
+                onSettings: { showSettings = true }
+            )
+            if let d = done {
+                DoneOverlay(stamp: d.stamp, text: d.text, partly: d.partly)
+                    .transition(.opacity)
+                    .onTapGesture { withAnimation { done = nil } }
+                    .zIndex(1)
+            }
+        }
+        .fullScreenCover(item: $exercise) { ex in
+            ExerciseView(
+                ex: ex,
+                onFinish: { ok, target, actual in
+                    store.logResult(ex, target: target, actual: actual, done: ok)
+                    let u = ex.unit == .sec ? " s" : ""
+                    let side = ex.side ? " pro Seite" : ""
+                    exercise = nil
+                    flash(ok ? "INSTALLED" : "LOGGED",
+                          ok ? "\(target)\(u) \(ex.name)\(side)" : "\(actual) von \(target)\(u) \(ex.name)",
+                          partly: !ok)
+                },
+                onSkip: { exercise = store.pick(excluding: ex.id) },
+                onClose: { exercise = nil }
+            )
+            .environmentObject(store)
+        }
+        .fullScreenCover(isPresented: $showRecord) {
+            RecordView(
+                onClose: { showRecord = false },
+                onFinished: {
+                    showRecord = false
+                    flash("BASELINE", "Ziele neu berechnet. Nächster Rekordtag in 4 Wochen.", partly: false)
+                }
+            )
+            .environmentObject(store)
+        }
+        .fullScreenCover(isPresented: $showSettings) {
+            SettingsView(
+                onClose: { showSettings = false },
+                onRecordDay: {
+                    showSettings = false
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) { showRecord = true }
+                }
+            )
+            .environmentObject(store)
+        }
+        .onChange(of: scenePhase) { phase in
+            if phase == .active { store.weeklyReview() }
+        }
+    }
+
+    private func flash(_ stamp: String, _ text: String, partly: Bool) {
+        UINotificationFeedbackGenerator().notificationOccurred(partly ? .warning : .success)
+        withAnimation(.easeOut(duration: 0.2)) { done = DoneInfo(stamp: stamp, text: text, partly: partly) }
+        let current = done
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) {
+            if done == current { withAnimation(.easeIn(duration: 0.25)) { done = nil } }
+        }
+    }
+}

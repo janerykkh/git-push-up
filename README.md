@@ -27,3 +27,14 @@ Einen Eintrag in `exercises.js` ergänzen. Die Felder sind oben in der Datei erk
 
 `BUILD` in `index.html`, die `?v=`-Nummern dort und `version.json` auf dieselbe neue Zahl setzen.
 Die App merkt beim Öffnen, dass `version.json` neuer ist, und lädt sich einmal neu.
+
+## iPhone-App (Xcode)
+
+Im Ordner `ios/` liegt die native Version (SwiftUI, ab iOS 17). Gleiche Logik wie die Web-App,
+Daten lokal auf dem iPhone, Backup im selben Format in `git-push-up-private`.
+
+1. `ios/GitPushUp.xcodeproj` in Xcode öffnen
+2. Target *GitPushUp* → *Signing & Capabilities* → Team auswählen (Personal Team reicht)
+3. iPhone per Kabel anschließen, als Ziel wählen, Run
+
+Neue Swift-Dateien einfach in den Ordner `ios/GitPushUp/` legen, Xcode nimmt sie automatisch auf.
