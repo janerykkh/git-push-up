@@ -110,6 +110,15 @@ final class PulseEngine: NSObject, ObservableObject, AVCaptureVideoDataOutputSam
             if session.canAddOutput(out) { session.addOutput(out) }
             session.commitConfiguration()
             device = dev
+            // Feste 30 Bilder pro Sekunde, sonst passt die Kamera die Rate ans Licht an und die Zeitachse verrutscht
+            if (try? dev.lockForConfiguration()) != nil {
+                let ok = dev.activeFormat.videoSupportedFrameRateRanges.contains { $0.minFrameRate <= 30 && $0.maxFrameRate >= 30 }
+                if ok {
+                    dev.activeVideoMinFrameDuration = CMTime(value: 1, timescale: 30)
+                    dev.activeVideoMaxFrameDuration = CMTime(value: 1, timescale: 30)
+                }
+                dev.unlockForConfiguration()
+            }
         }
         if !session.isRunning { session.startRunning() }
         setTorch(true)
@@ -187,15 +196,23 @@ final class PulseEngine: NSObject, ObservableObject, AVCaptureVideoDataOutputSam
             DispatchQueue.main.async { self.live = out }
             return
         }
-        let fs = Double(times.count - 1) / span
-        let ref = clean(accel, fs: fs)
+        // Auf ein festes 30-Hz-Raster umrechnen, damit Lücken oder schwankende Bildraten nichts verfälschen
+        let fs = 30.0
+        let grid = stride(from: times[0], through: times[times.count - 1], by: 1 / fs).map { $0 }
+        let ref = clean(resample(accel, at: grid), fs: fs)
         var best: (bpm: Double, q: Double, sig: [Double], name: String, filt: Bool)? = nil
         for (name, ch) in [("ROT", red), ("GRÜN", green)] {
-            let sig = clean(ch, fs: fs)
+            let sig = clean(resample(ch, at: grid), fs: fs)
             for (filt, s) in [(false, sig), (true, nlms(sig, ref: ref))] {
-                if let r = autocorrBPM(s, fs: fs), best == nil || r.q > best!.q {
-                    best = (r.bpm, r.q, s, name, filt)
+                guard var r = autocorrBPM(s, fs: fs) else { continue }
+                // Gegenprobe: Abstand der einzelnen Herzschläge. Weichen beide Methoden ab, ist das Signal unsicher.
+                if let p = peakBPM(s, fs: fs) {
+                    let diff = Swift.abs(p - r.bpm) / r.bpm
+                    if diff > 0.08 { r.q *= 0.5 }
+                } else {
+                    r.q *= 0.7
                 }
+                if best == nil || r.q > best!.q { best = (r.bpm, r.q, s, name, filt) }
             }
         }
         if let b = best {
@@ -284,6 +301,40 @@ final class PulseEngine: NSObject, ObservableObject, AVCaptureVideoDataOutputSam
         let shift = denom != 0 ? max(-0.5, min(0.5, 0.5 * (a - c) / denom)) : 0
         let lag = Double(bestLag) + shift
         return (60 * fs / lag, q)
+    }
+
+    /// Lineare Interpolation der Messwerte auf das gleichmäßige Zeitraster
+    private func resample(_ x: [Double], at grid: [Double]) -> [Double] {
+        guard x.count == times.count, x.count > 1 else { return x }
+        var out = [Double](); out.reserveCapacity(grid.count)
+        var j = 0
+        for t in grid {
+            while j < times.count - 2 && times[j + 1] < t { j += 1 }
+            let t0 = times[j], t1 = times[j + 1]
+            let a = t1 > t0 ? max(0, min(1, (t - t0) / (t1 - t0))) : 0
+            out.append(x[j] + (x[j + 1] - x[j]) * a)
+        }
+        return out
+    }
+
+    /// Puls aus den Abständen der einzelnen Spitzen (Median), als zweite, unabhängige Schätzung
+    private func peakBPM(_ x: [Double], fs: Double) -> Double? {
+        let minDist = Int(fs * 60 / 200)
+        var peaks: [Int] = []
+        guard x.count > 4 else { return nil }
+        for i in 2..<(x.count - 2) {
+            let v = x[i]
+            guard v > 0.3, v >= x[i - 1], v >= x[i + 1], v >= x[i - 2], v >= x[i + 2] else { continue }
+            if let last = peaks.last, i - last < minDist {
+                if v > x[last] { peaks[peaks.count - 1] = i }
+            } else {
+                peaks.append(i)
+            }
+        }
+        guard peaks.count >= 4 else { return nil }
+        let ibi = zip(peaks.dropFirst(), peaks).map { Double($0 - $1) / fs }
+        let m = median(ibi)
+        return m > 0 ? 60 / m : nil
     }
 
     private func rms(_ x: [Double]) -> Double {

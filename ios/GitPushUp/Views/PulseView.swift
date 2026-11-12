@@ -12,6 +12,7 @@ struct PulseView: View {
     @State private var mode: PulseEngine.Mode = .finger
     @State private var speak = true
     @State private var lastResult: PulseReading? = nil
+    @State private var taps: [Date] = []
     @State private var synth = AVSpeechSynthesizer()
 
     var body: some View {
@@ -39,6 +40,7 @@ struct PulseView: View {
                 readout
                 waveform
                 stats
+                tapAlong
 
                 Toggle("ERGEBNIS ANSAGEN", isOn: $speak).font(mono(12)).tint(.phos)
 
@@ -166,6 +168,39 @@ struct PulseView: View {
             cell("SIGNAL", l.contact ? "\(Int((l.quality * 100).rounded()))%" : "–")
             cell("BEWEGUNG", motionText(l.motion))
             cell("FILTER", l.contact ? (l.filtered ? "AKTIV" : "AUS") + " · \(l.channel)" : "–")
+        }
+    }
+
+    /// Zum Gegencheck: Puls am Hals fühlen und bei jedem Schlag hier tippen
+    private var tapBPM: Int? {
+        let recent = taps.suffix(9)
+        guard recent.count >= 5, let first = recent.first, let last = recent.last else { return nil }
+        let span = last.timeIntervalSince(first)
+        guard span > 0 else { return nil }
+        return Int((Double(recent.count - 1) / span * 60).rounded())
+    }
+
+    private var tapAlong: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label12(text: "GEGENCHECK: PULS FÜHLEN UND BEI JEDEM SCHLAG TIPPEN")
+            HStack(spacing: 12) {
+                Button {
+                    let now = Date()
+                    if let l = taps.last, now.timeIntervalSince(l) > 3 { taps = [] }
+                    taps.append(now)
+                } label: {
+                    Text("TIPP").font(mono(16, .heavy)).tracking(4).foregroundStyle(Color.danger)
+                        .frame(maxWidth: .infinity, minHeight: 64)
+                        .background(Color.danger.opacity(0.08))
+                        .overlay(RoundedRectangle(cornerRadius: 4).stroke(Color.danger, lineWidth: 1))
+                }
+                .buttonStyle(.plain)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(tapBPM.map { "\($0)" } ?? "–").font(mono(28, .bold)).monospacedDigit().foregroundStyle(Color.fg)
+                    Text(taps.count < 5 ? "noch \(5 - taps.count) Tipps" : "getippt").font(mono(10)).foregroundStyle(Color.muted)
+                }
+                .frame(width: 96, alignment: .leading)
+            }
         }
     }
 
