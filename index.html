@@ -14,7 +14,7 @@
 <link rel="icon" href="icon-512.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800&display=swap">
-<link rel="stylesheet" href="style.css?v=10">
+<link rel="stylesheet" href="style.css?v=11">
 </head>
 <body>
 <div id="errBox" hidden style="position:fixed;left:0;right:0;bottom:0;z-index:99;background:#3a0d0d;color:#ffd6d6;font:12px/1.4 ui-monospace,Menlo,monospace;padding:10px 16px calc(10px + env(safe-area-inset-bottom,0px));white-space:pre-wrap"></div>
@@ -134,8 +134,7 @@
   <h1 class="exName" id="exName"></h1>
   <div class="figure" id="figure"></div>
   <div class="target"><b id="exTarget"></b><span id="exUnit"></span></div>
-  <div class="setRow" id="setRow" hidden></div>
-  <p class="cue" id="exCue"></p>
+    <p class="cue" id="exCue"></p>
   <p class="note" id="exNote" hidden></p>
   <p class="why" id="exWhy"></p>
   <div class="timerRow" id="timerRow" hidden>
@@ -193,9 +192,14 @@
   </section>
 
   <section class="block">
-    <h2>REKORDTAG</h2>
+    <h2>REKORDE</h2>
     <p class="small" id="recSettingsInfo"></p>
-    <div class="actions"><button class="btn" id="recNow" type="button">REKORDTAG JETZT MACHEN</button></div>
+    <div id="recEdit" style="display:flex;flex-direction:column;gap:10px"></div>
+    <div class="actions">
+      <button class="btn ok" id="recSave" type="button">REKORDE SPEICHERN</button>
+      <button class="btn" id="recNow" type="button">REKORDTAG MACHEN</button>
+    </div>
+    <p class="small" id="recSaveInfo"></p>
   </section>
 
   <section class="block">
@@ -214,8 +218,8 @@
   </section>
 </main>
 
-<script src="exercises.js?v=10"></script>
-<script src="body3d.js?v=10"></script>
-<script src="app.js?v=10"></script>
+<script src="exercises.js?v=11"></script>
+<script src="body3d.js?v=11"></script>
+<script src="app.js?v=11"></script>
 </body>
 </html>

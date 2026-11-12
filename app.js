@@ -98,14 +98,27 @@ function pctText(f) { return Math.round(Math.min(1, f) * 100) + "%"; }
 
 /* ---------------- Übungsauswahl ---------------- */
 function pool() { return EXERCISES.filter((e) => !e.retired && (!e.equipment || equipOn[e.equipment])); }
+// Die Runde enthält jede Übung so oft, wie sie Sätze braucht (z. B. Kniebeugen 2×, wenn 48 nicht in eine Minute passen)
+function setsFor(ex, target) {
+  const n = ex.cap && target > ex.cap ? Math.ceil(target / ex.cap) : 1;
+  let per = Math.ceil(target / n);
+  if (ex.unit === "sec") per = Math.ceil(per / 5) * 5;
+  return { n, per };
+}
+function buildRound() {
+  const d = [];
+  pool().forEach((ex) => { const n = setsFor(ex, targetFor(ex)).n; for (let i = 0; i < n; i++) d.push(ex.id); });
+  return d;
+}
+let roundSize = load("gpu-roundsize", 0);
 function liveDeck() {
   const ids = new Set(pool().map((e) => e.id));
   deck = deck.filter((id) => ids.has(id));
-  if (!deck.length) deck = [...ids];
+  if (!deck.length) { deck = buildRound(); roundSize = deck.length; save("gpu-roundsize", roundSize); }
   save(KEY.deck, deck);
-  return deck.map((id) => byId[id]);
+  return [...new Set(deck)].map((id) => byId[id]);
 }
-function roundText() { const total = pool().length, left = liveDeck().length; return `RUNDE ${total - left + 1}/${total}`; }
+function roundText() { liveDeck(); const total = Math.max(roundSize, deck.length); return `RUNDE ${total - deck.length + 1}/${total}`; }
 
 // Wie gut passt eine Übung gerade? Hoch = trifft frische Muskeln, niedrig = Hauptmuskel noch erschöpft.
 function score(ex, F) {
@@ -119,8 +132,11 @@ function score(ex, F) {
   if (ex.cat === lastCat) s -= 0.1;
   return s;
 }
+let lastEx = load("gpu-lastex", null);
 function trainerPick(excludeId) {
   const F = fatigueAt();
+  // Dieselbe Übung nicht zweimal direkt hintereinander, außer es ist die letzte der Runde
+  if (!excludeId && lastEx && liveDeck().some((e) => e.id !== lastEx)) excludeId = lastEx;
   const rank = (list) => list.filter((e) => e.id !== excludeId).map((e) => ({ e, s: score(e, F) })).sort((a, b) => b.s - a.s);
   // Immer aus der laufenden Runde wählen, damit jede Übung einmal drankommt; innerhalb der Runde die passendste
   let r = rank(liveDeck());
@@ -308,7 +324,7 @@ function renderStats() {
     const pr = isMarker && trainer.baseline && trainer.baseline[ex.id] ? ` · Rekord <span class="pr">${trainer.baseline[ex.id]}${u}</span>` : "";
     const rate = all.length ? Math.round((all.filter((l) => l.done).length / all.length) * 100) + "% geschafft" : "noch nicht gemacht";
     return `<li style="--c:var(--${ex.cat})"><span class="dot"></span><span>${ex.name}<span class="sub">${all.length}× · ${rate}${pr}</span></span>` +
-      `<span class="num">Ziel <b>${targetFor(ex)}${u}</b>${ex.side ? "/S" : ""}${trend}</span></li>`;
+      `<span class="num">${(() => { const s = setsFor(ex, targetFor(ex)); return `${s.n > 1 ? s.n + "× " : ""}<b>${s.per}${u}</b>`; })()}${ex.side ? "/S" : ""}${trend}</span></li>`;
   }).join("");
 
   const recent = entries.slice(-40).reverse();
@@ -355,53 +371,21 @@ function renderChart(entries, s) {
 }
 
 /* ---------------- Übung ---------------- */
-let current = null, timer = null, restTimer = null;
-// Passt das Ziel nicht in etwa eine Minute (cap), wird es auf gleich große Sätze verteilt
-function setsFor(ex, target) {
-  const n = ex.cap && target > ex.cap ? Math.ceil(target / ex.cap) : 1;
-  let per = Math.ceil(target / n);
-  if (ex.unit === "sec") per = Math.ceil(per / 5) * 5;
-  return { n, per };
-}
-const REST_SEC = 30;
-function renderSets() {
-  const { n } = current.sets;
-  $("setRow").hidden = n < 1 || n === 1;
-  $("setRow").innerHTML = [...Array(n)].map((_, i) =>
-    `<button type="button" class="setChip ${i < current.setsDone ? "on" : ""}" data-i="${i}">SATZ ${i + 1}${i < current.setsDone ? " ✓" : ""}</button>`).join("") +
-    `<span class="rest" id="restVal"></span>`;
-  $("setRow").querySelectorAll(".setChip").forEach((b) => b.onclick = () => {
-    const i = +b.dataset.i;
-    current.setsDone = i < current.setsDone ? i : i + 1;
-    renderSets();
-    if (current.setsDone < n && current.setsDone === i + 1) startRest();
-  });
-}
-function startRest() {
-  clearInterval(restTimer);
-  let left = REST_SEC;
-  const tick = () => { const el = $("restVal"); if (el) el.textContent = left > 0 ? `PAUSE ${left} s` : "WEITER"; if (left-- <= 0) clearInterval(restTimer); };
-  tick(); restTimer = setInterval(tick, 1000);
-}
+let current = null, timer = null;
 function startExercise(ex) {
   stopTimer();
-  const target = targetFor(ex);
-  current = { ex, target, sets: setsFor(ex, target), setsDone: 0 };
-  clearInterval(restTimer);
+  current = { ex, target: setsFor(ex, targetFor(ex)).per };
   $("exercise").style.setProperty("--c", `var(--${ex.cat})`);
   $("exCat").textContent = CATEGORIES[ex.cat].label.toUpperCase();
   $("exName").textContent = ex.name;
-  const multi = current.sets.n > 1;
-  $("exTarget").textContent = multi ? `${current.sets.n}×${current.sets.per}` : current.target;
-  $("exUnit").textContent = (ex.unit === "sec" ? "SEKUNDEN HALTEN" : "WIEDERHOLUNGEN") + (multi ? " PRO SATZ" : "") + (ex.side ? (multi ? ", PRO SEITE" : " PRO SEITE") : "") +
-    (multi ? ` · ${REST_SEC} s PAUSE` : "");
-  renderSets();
+  $("exTarget").textContent = current.target;
+  $("exUnit").textContent = (ex.unit === "sec" ? "SEKUNDEN HALTEN" : "WIEDERHOLUNGEN") + (ex.side ? " PRO SEITE" : "");
   $("exCue").textContent = ex.cue;
   $("exNote").hidden = !ex.note; $("exNote").textContent = ex.note || "";
   $("exWhy").textContent = whyText(ex);
   $("timerRow").hidden = ex.unit !== "sec"; $("timerVal").textContent = "0 s"; $("timerBtn").textContent = "TIMER STARTEN";
   $("doneRow").hidden = false; $("partialForm").hidden = true; $("skipBtn").hidden = false;
-  $("partialLabel").textContent = (ex.unit === "sec" ? "Wie viele Sekunden hast du gehalten?" : "Wie viele Wiederholungen hast du geschafft?") + (current.sets.n > 1 ? " (alle Sätze zusammen)" : "");
+  $("partialLabel").textContent = (ex.unit === "sec" ? "Wie viele Sekunden hast du gehalten?" : "Wie viele Wiederholungen hast du geschafft?");
   $("partialIn").value = "";
   drawFigure(ex, $("figure"));
   show("exercise");
@@ -410,24 +394,23 @@ $("goBtn").onclick = () => { if (!trainer.baselineDate) { show("record"); return
 $("recBanner").onclick = () => show("record");
 $("skipBtn").onclick = () => startExercise(trainerPick(current.ex.id));
 $("exClose").onclick = () => { stopTimer(); show("home"); };
-$("okBtn").onclick = () => finish(true, current.sets.n * current.sets.per);
+$("okBtn").onclick = () => finish(true, current.target);
 $("noBtn").onclick = () => { stopTimer(); $("doneRow").hidden = true; $("skipBtn").hidden = true; $("partialForm").hidden = false; setTimeout(() => $("partialIn").focus(), 50); };
 $("partialForm").addEventListener("submit", (e) => { e.preventDefault(); finish(false, Math.max(0, parseInt($("partialIn").value, 10) || 0)); });
 $("toSettings").onclick = () => show("settings");
 $("settingsBack").onclick = () => show("home");
 
 function finish(done, actual) {
-  stopTimer(); clearInterval(restTimer);
-  const { ex, sets } = current;
-  const target = sets.n * sets.per;
-  log.push({ id: uid(), ex: ex.id, cat: ex.cat, target, actual, done, sets: sets.n, ts: Date.now() });
+  stopTimer();
+  const { ex, target } = current;
+  log.push({ id: uid(), ex: ex.id, cat: ex.cat, target, actual, done, ts: Date.now() });
   persistLog();
-  deck = deck.filter((id) => id !== ex.id); save(KEY.deck, deck);
+  const di = deck.indexOf(ex.id); if (di >= 0) deck.splice(di, 1); save(KEY.deck, deck);
+  lastEx = ex.id; save("gpu-lastex", lastEx);
   lastCat = ex.cat; save(KEY.last, lastCat);
   const u = ex.unit === "sec" ? " s" : "";
   const side = ex.side ? " pro Seite" : "";
-  const shown = sets.n > 1 ? `${sets.n}×${sets.per}${u}` : `${target}${u}`;
-  showDone(done ? "INSTALLED" : "LOGGED", !done, done ? `${shown} ${ex.name}${side}` : `${actual} von ${target}${u} ${ex.name}`);
+  showDone(done ? "INSTALLED" : "LOGGED", !done, done ? `${target}${u} ${ex.name}${side}` : `${actual} von ${target}${u} ${ex.name}`);
   maybeAutoBackup();
 }
 function showDone(stamp, partly, text) {
@@ -450,7 +433,7 @@ function runTimer(btn, valEl, inputEl, goal) {
     inputEl.value = s;
   }, 250);
 }
-$("timerBtn").onclick = () => runTimer($("timerBtn"), $("timerVal"), $("partialIn"), current.sets.per);
+$("timerBtn").onclick = () => runTimer($("timerBtn"), $("timerVal"), $("partialIn"), current.target);
 
 /* ---------------- Rekordtag ---------------- */
 let recSel = null;
@@ -513,6 +496,7 @@ $("recFinish").onclick = () => {
   trainer.pending = {};
   trainer.targets = {};
   pool().forEach((ex) => { trainer.targets[ex.id] = { t: roundTarget(ex, estMax(ex) * WORK_FRACTION), reviewed: Date.now(), change: 0 }; });
+  deck = []; save(KEY.deck, deck);
   saveTrainer();
   recSel = null;
   showDone("BASELINE", false, "Ziele neu berechnet. Nächster Rekordtag in 4 Wochen.");
@@ -647,6 +631,7 @@ function renderSettings() {
   $("equipPanel").hidden = !equip.length;
   $("equipList").innerHTML = equip.map((q) => `<label class="toggle">${q}<input type="checkbox" id="eq-${q}" data-q="${q}" ${equipOn[q] ? "checked" : ""}></label>`).join("");
   $("equipList").querySelectorAll("input").forEach((i) => i.onchange = () => { equipOn[i.dataset.q] = i.checked; save(KEY.equip, equipOn); });
+  renderRecordEdit(); $("recSaveInfo").textContent = "";
   $("recSettingsInfo").textContent = trainer.baselineDate
     ? `Letzter Rekordtag: ${new Date(trainer.baselineDate).toLocaleDateString("de-DE")}. Nächster in ${daysToRecord()} Tagen.`
     : "Noch keine Baseline gemessen.";
@@ -655,6 +640,27 @@ function renderSettings() {
   $("undoBtn").disabled = !log.length;
 }
 $("recNow").onclick = () => show("record");
+function renderRecordEdit() {
+  $("recEdit").innerHTML = MARKERS.map((m) => {
+    const v = trainer.baseline && trainer.baseline[m.id];
+    return `<label class="field">${m.label.toUpperCase()}${m.unit === "sec" ? " (SEKUNDEN)" : ""}` +
+      `<input type="number" inputmode="numeric" min="1" id="re-${m.id}" value="${v || ""}" placeholder="${m.fallback} (Schätzwert)"></label>`;
+  }).join("");
+}
+$("recSave").onclick = () => {
+  const b = { ...(trainer.baseline || {}) };
+  MARKERS.forEach((m) => { const v = parseInt($("re-" + m.id).value, 10); if (v > 0) b[m.id] = v; });
+  trainer.baseline = b;
+  if (!trainer.baselineDate) trainer.baselineDate = Date.now();
+  // Ziele neu aus den Rekorden berechnen, Wochenrhythmus bleibt
+  pool().forEach((ex) => {
+    const old = trainer.targets[ex.id];
+    trainer.targets[ex.id] = { t: roundTarget(ex, estMax(ex) * WORK_FRACTION), reviewed: old ? old.reviewed : Date.now(), change: 0 };
+  });
+  deck = []; save(KEY.deck, deck);
+  saveTrainer();
+  $("recSaveInfo").textContent = "Gespeichert. Ziele neu berechnet.";
+};
 $("undoBtn").onclick = () => {
   const l = log[log.length - 1]; if (!l) return;
   $("undoText").textContent = `${byId[l.ex] ? byId[l.ex].name : l.ex} vom ${fmtTime(l.ts)} löschen?`;
