@@ -22,3 +22,8 @@ Einen Eintrag in `exercises.js` ergänzen. Die Felder sind oben in der Datei erk
 | `exercises.js` | Übungen, Muskelgruppen, Posen |
 | `app.js` | Logik, Statistik, Backup |
 | `sw.js` | Offline-Modus |
+
+## Neue Version veröffentlichen
+
+`BUILD` in `index.html`, die `?v=`-Nummern dort und `version.json` auf dieselbe neue Zahl setzen.
+Die App merkt beim Öffnen, dass `version.json` neuer ist, und lädt sich einmal neu.
