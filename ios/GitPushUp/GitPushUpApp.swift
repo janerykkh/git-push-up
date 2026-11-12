@@ -22,6 +22,7 @@ struct RootView: View {
     @State private var exercise: Exercise? = nil
     @State private var showRecord = false
     @State private var showSettings = false
+    @State private var showPulse = false
     @State private var done: DoneInfo? = nil
 
     struct DoneInfo: Equatable { let stamp: String; let text: String; let partly: Bool }
@@ -32,7 +33,8 @@ struct RootView: View {
                 onGo: { exercise = store.pick() },
                 onExercise: { exercise = $0 },
                 onRecord: { showRecord = true },
-                onSettings: { showSettings = true }
+                onSettings: { showSettings = true },
+                onPulse: { showPulse = true }
             )
             if let d = done {
                 DoneOverlay(stamp: d.stamp, text: d.text, partly: d.partly)
@@ -77,6 +79,10 @@ struct RootView: View {
                 }
             )
             .environmentObject(store)
+        }
+        .fullScreenCover(isPresented: $showPulse) {
+            PulseView(onClose: { showPulse = false })
+                .environmentObject(store)
         }
         .onChange(of: scenePhase) { phase in
             if phase == .active { store.weeklyReview() }

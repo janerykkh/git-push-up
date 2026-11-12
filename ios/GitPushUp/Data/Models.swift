@@ -51,6 +51,15 @@ enum Period: String, CaseIterable, Codable, Identifiable {
     }
 }
 
+struct PulseReading: Codable, Identifiable, Equatable {
+    var id: String
+    var ts: Millis
+    var bpm: Int
+    var quality: Double
+    var motion: Double
+    var mode: String
+}
+
 /// Alles, was lokal gespeichert wird (eine JSON-Datei im App-Ordner, nirgends sonst)
 struct PersistedState: Codable {
     var log: [LogEntry] = []
@@ -62,6 +71,7 @@ struct PersistedState: Codable {
     var period: Period = .day
     var backupRepo: String = "janerykkh/git-push-up-private"
     var lastBackup: Millis = 0
+    var pulse: [PulseReading] = []
 }
 
 /// Format der backup.json im privaten Repo (gleich wie bei der Web-App)
@@ -97,5 +107,6 @@ extension PersistedState {
         period = try c.decodeIfPresent(Period.self, forKey: .period) ?? .day
         backupRepo = try c.decodeIfPresent(String.self, forKey: .backupRepo) ?? "janerykkh/git-push-up-private"
         lastBackup = try c.decodeIfPresent(Millis.self, forKey: .lastBackup) ?? 0
+        pulse = try c.decodeIfPresent([PulseReading].self, forKey: .pulse) ?? []
     }
 }

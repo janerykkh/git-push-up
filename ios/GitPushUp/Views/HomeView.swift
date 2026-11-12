@@ -8,6 +8,7 @@ struct HomeView: View {
     let onExercise: (Exercise) -> Void
     let onRecord: () -> Void
     let onSettings: () -> Void
+    let onPulse: () -> Void
 
     @State private var selected: Muscle? = nil
 
@@ -69,7 +70,11 @@ struct HomeView: View {
             Spacer()
             let today = todayEntries.count
             Text(!store.hasBaseline ? "KALIBRIERUNG NÖTIG" : today > 0 ? "SYSTEME ONLINE" : "BEREIT")
-                .font(mono(11)).tracking(1.8).foregroundStyle(Color.phos).glow(.phos, 6).lineLimit(1)
+                .font(mono(11)).tracking(1.8).foregroundStyle(Color.phos).glow(.phos, 6).lineLimit(1).minimumScaleFactor(0.6)
+            Button(action: onPulse) {
+                Image(systemName: "heart.text.square").font(.system(size: 18)).foregroundStyle(Color.danger.opacity(0.85)).frame(width: 40, height: 44)
+            }
+            .accessibilityLabel("Pulstest")
             Button(action: onSettings) {
                 Image(systemName: "gearshape").font(.system(size: 18)).foregroundStyle(Color.muted).frame(width: 44, height: 44)
             }
