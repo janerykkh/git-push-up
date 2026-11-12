@@ -21,6 +21,7 @@ struct RootView: View {
 
     @State private var exercise: ActivePick? = nil
     @State private var showManual = false
+    @State private var showProtein = false
     @State private var showRecord = false
     @State private var showSettings = false
     @State private var showPulse = false
@@ -40,6 +41,7 @@ struct RootView: View {
                 onGo: { exercise = pickNext() },
                 onExercise: { exercise = ActivePick(ex: $0, boss: false) },
                 onManual: { showManual = true },
+                onProtein: { showProtein = true },
                 onRecord: { showRecord = true },
                 onSettings: { showSettings = true },
                 onPulse: { showPulse = true }
@@ -74,6 +76,10 @@ struct RootView: View {
                 onClose: { exercise = nil }
             )
             .environmentObject(store)
+        }
+        .sheet(isPresented: $showProtein) {
+            ProteinView(onClose: { showProtein = false })
+                .environmentObject(store)
         }
         .sheet(isPresented: $showManual) {
             ManualEntryView(onDone: { showManual = false })

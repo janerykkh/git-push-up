@@ -7,6 +7,7 @@ struct HomeView: View {
     let onGo: () -> Void
     let onExercise: (Exercise) -> Void
     let onManual: () -> Void
+    let onProtein: () -> Void
     let onRecord: () -> Void
     let onSettings: () -> Void
     let onPulse: () -> Void
@@ -44,7 +45,10 @@ struct HomeView: View {
                             }
                             .buttonStyle(.plain)
                         }
-                        goButton
+                        HStack(spacing: 10) {
+                            goButton
+                            proteinButton
+                        }
                         if store.hasBaseline {
                             Button(action: onManual) {
                                 Text("+ ÜBUNG NACHTRAGEN").font(mono(11)).tracking(1.6).foregroundStyle(Color.muted)
@@ -130,17 +134,32 @@ struct HomeView: View {
         let first = !store.hasBaseline
         let c: Color = first ? .amber : .phos
         return Button(action: { first ? onRecord() : onGo() }) {
-            VStack(spacing: 4) {
-                Text(first ? "REKORDTAG" : "ÜBUNG").font(mono(24, .heavy)).tracking(10).foregroundStyle(c).glow(c, 10)
-                if first {
-                    Text("EINMAL DEINE BASELINE MESSEN").font(mono(10)).tracking(2).foregroundStyle(Color.muted)
-                }
+            VStack(spacing: 5) {
+                Text(first ? "REKORDTAG" : "ÜBUNG").font(mono(first ? 17 : 22, .heavy)).tracking(first ? 3 : 6)
+                    .foregroundStyle(c).glow(c, 10).lineLimit(1).minimumScaleFactor(0.7)
+                Text(first ? "BASELINE MESSEN" : "EINE RUNDE").font(mono(9.5)).tracking(1.6).foregroundStyle(Color.muted)
             }
-            .frame(maxWidth: .infinity, minHeight: 72)
+            .frame(maxWidth: .infinity, minHeight: 84)
             .background(c.opacity(0.09))
             .overlay(RoundedRectangle(cornerRadius: 4).stroke(c, lineWidth: 1))
-            .overlay(alignment: .leading) { Rectangle().fill(c.opacity(0.6)).frame(width: 18, height: 1).padding(.leading, 14) }
-            .overlay(alignment: .trailing) { Rectangle().fill(c.opacity(0.6)).frame(width: 18, height: 1).padding(.trailing, 14) }
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var proteinButton: some View {
+        let today = Int(store.proteinToday.rounded())
+        let avgText = store.proteinAverage.map { String(Int($0.rounded())) } ?? "–"
+        let c: Color = .ziehen
+        return Button(action: onProtein) {
+            VStack(spacing: 5) {
+                Text("PROTEIN").font(mono(22, .heavy)).tracking(4).foregroundStyle(c).glow(c, 10)
+                    .lineLimit(1).minimumScaleFactor(0.7)
+                Text("HEUTE \(today) G · Ø \(avgText)")
+                    .font(mono(9.5)).tracking(1).foregroundStyle(Color.muted).lineLimit(1).minimumScaleFactor(0.7)
+            }
+            .frame(maxWidth: .infinity, minHeight: 84)
+            .background(c.opacity(0.07))
+            .overlay(RoundedRectangle(cornerRadius: 4).stroke(c, lineWidth: 1))
         }
         .buttonStyle(.plain)
     }

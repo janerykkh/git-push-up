@@ -65,6 +65,14 @@ struct PulseReading: Codable, Identifiable, Equatable {
     var mode: String
 }
 
+/// Eine Protein-Portion (1 ≈ 25 g). Halbe oder Dreiviertel-Portionen sind erlaubt.
+struct ProteinEntry: Codable, Identifiable, Equatable {
+    var id: String
+    var ts: Millis
+    var portions: Double
+    var label: String?
+}
+
 /// Alles, was lokal gespeichert wird (eine JSON-Datei im App-Ordner, nirgends sonst)
 struct PersistedState: Codable {
     var log: [LogEntry] = []
@@ -79,6 +87,7 @@ struct PersistedState: Codable {
     var pulse: [PulseReading] = []
     /// Persönlicher Faktor pro Muskel: wie schnell er bei dir im Verhältnis ermüdet (lernt aus deinen Ergebnissen)
     var muscleScale: [String: Double] = [:]
+    var protein: [ProteinEntry] = []
 }
 
 /// Format der backup.json im privaten Repo (gleich wie bei der Web-App)
@@ -88,6 +97,7 @@ struct BackupFile: Codable {
     var entries: [LogEntry]?
     var deleted: [String]?
     var trainer: TrainerState?
+    var protein: [ProteinEntry]?
 }
 
 // Fehlende Felder (ältere Backups, neue Versionen) einfach mit Standardwerten füllen statt abzubrechen
@@ -116,5 +126,6 @@ extension PersistedState {
         lastBackup = try c.decodeIfPresent(Millis.self, forKey: .lastBackup) ?? 0
         pulse = try c.decodeIfPresent([PulseReading].self, forKey: .pulse) ?? []
         muscleScale = try c.decodeIfPresent([String: Double].self, forKey: .muscleScale) ?? [:]
+        protein = try c.decodeIfPresent([ProteinEntry].self, forKey: .protein) ?? []
     }
 }

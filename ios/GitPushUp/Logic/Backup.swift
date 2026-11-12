@@ -66,6 +66,9 @@ extension Store {
         var map: [String: LogEntry] = [:]
         for l in state.log + (remote.entries ?? []) where !del.contains(l.id) { map[l.id] = l }
         state.log = map.values.sorted { $0.ts < $1.ts }
+        var pmap: [String: ProteinEntry] = [:]
+        for e in state.protein + (remote.protein ?? []) where !del.contains(e.id) { pmap[e.id] = e }
+        state.protein = pmap.values.sorted { $0.ts < $1.ts }
         // Trainer: eine echte Baseline schlägt immer eine leere; sonst gewinnt der neuere Stand
         if let t = remote.trainer {
             let remoteHas = t.baselineDate > 0, localHas = state.trainer.baselineDate > 0
@@ -80,7 +83,7 @@ extension Store {
         let remote = try await fetchRemote()
         if let f = remote.file { merge(f) }
         let iso = ISO8601DateFormatter().string(from: Date())
-        let payload = BackupFile(version: 2, exported: iso, entries: state.log, deleted: state.deleted, trainer: state.trainer)
+        let payload = BackupFile(version: 3, exported: iso, entries: state.log, deleted: state.deleted, trainer: state.trainer, protein: state.protein)
         let json = try JSONEncoder().encode(payload)
         var body: [String: String] = [
             "message": "Backup \(Date().formatted(date: .numeric, time: .omitted)): \(state.log.count) Einträge",
