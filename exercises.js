@@ -131,7 +131,8 @@ const EXERCISES = [
     a: [[60,130],[74,126],[118,128],[150,104],[160,150],[152,104],[162,150],[74,102],[76,78],[76,102],[78,78]],
     b: [[60,94],[76,98],[118,108],[150,102],[160,150],[152,102],[162,150],[96,104],[80,78],[98,104],[82,78]] },
 
-  { id: "doorrow", prop: [[142, 20, 142, 150], [150, 20, 150, 150]], marker: "tablerow", factor: 1.0, cap: 15, name: "Türrahmen-Rudern", cat: "ziehen", unit: "reps", base: 8, step: 1, side: true, equipment: null,
+  // Aus dem Pool genommen: Türrahmen nicht vertrauenswürdig
+  { id: "doorrow", retired: true, prop: [[142, 20, 142, 150], [150, 20, 150, 150]], marker: "tablerow", factor: 1.0, cap: 15, name: "Türrahmen-Rudern", cat: "ziehen", unit: "reps", base: 8, step: 1, side: true, equipment: null,
     cue: "Türrahmen mit einer Hand auf Brusthöhe greifen, Füße nah am Rahmen, zurücklehnen. Mit dem Ellbogen am Körper zum Rahmen ziehen. Je weiter die Füße vorne, desto schwerer.",
     muscles: { lats: 1, upperBack: 0.5, biceps: 0.5, rearDelt: 0.5, obliques: 0.25 },
     a: [[86,46],[92,60],[110,106],[120,128],[130,150],[118,128],[126,150],[116,62],[140,62],[96,82],[100,104]],

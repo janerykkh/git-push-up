@@ -189,3 +189,7 @@ ul.rows li:first-child{border-top:0}
 html,body{overflow-x:hidden;max-width:100%}
 .figure,.hangar{overflow:hidden}
 .figure svg{overflow:hidden}
+
+/* Kein Doppeltipp-Zoom; Eingabefelder mind. 16px, sonst zoomt iOS beim Antippen hinein */
+html,body{touch-action:manipulation;-webkit-text-size-adjust:100%}
+input,select,textarea{font-size:16px!important}

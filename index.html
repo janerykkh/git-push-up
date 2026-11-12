@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <title>git push-up</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
@@ -14,12 +14,16 @@
 <link rel="icon" href="icon-512.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800&display=swap">
-<link rel="stylesheet" href="style.css?v=15">
+<link rel="stylesheet" href="style.css?v=16">
 </head>
 <body>
 <div id="errBox" hidden style="position:fixed;left:0;right:0;bottom:0;z-index:99;background:#3a0d0d;color:#ffd6d6;font:12px/1.4 ui-monospace,Menlo,monospace;padding:10px 16px calc(10px + env(safe-area-inset-bottom,0px));white-space:pre-wrap"></div>
 <script>
   window.addEventListener("error",function(e){var u=(e.target&&(e.target.src||e.target.href))||"";if(u&&u.indexOf(location.origin)!==0)return;var b=document.getElementById("errBox");b.hidden=false;b.textContent+="FEHLER: "+(e.message||(e.target&&e.target.src)||(e.target&&e.target.href)||"unbekannt")+"\n";},true);
+  // Zoomen per Pinch und Doppeltippen verhindern (iOS ignoriert user-scalable teilweise)
+  document.addEventListener("gesturestart",function(e){e.preventDefault();},{passive:false});
+  document.addEventListener("touchmove",function(e){if(e.touches.length>1)e.preventDefault();},{passive:false});
+  var lastTouch=0;document.addEventListener("touchend",function(e){var t=Date.now();if(t-lastTouch<300&&!(e.target.closest&&e.target.closest("input,button,label,a,canvas")))e.preventDefault();lastTouch=t;},{passive:false});
   if("serviceWorker" in navigator){navigator.serviceWorker.getRegistrations().then(function(rs){rs.forEach(function(r){r.update();});});}
 </script>
 
@@ -218,8 +222,8 @@
   </section>
 </main>
 
-<script src="exercises.js?v=15"></script>
-<script src="body3d.js?v=15"></script>
-<script src="app.js?v=15"></script>
+<script src="exercises.js?v=16"></script>
+<script src="body3d.js?v=16"></script>
+<script src="app.js?v=16"></script>
 </body>
 </html>
