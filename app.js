@@ -423,4 +423,4 @@ Body3D.init($("bodyCanvas"), (a) => {
 });
 show("home");
 maybeAutoBackup();
-if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
+// Offline-Cache ist vorerst aus (siehe sw.js)

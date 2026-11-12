@@ -14,9 +14,14 @@
 <link rel="icon" href="icon-512.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800&display=swap">
-<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="style.css?v=3">
 </head>
 <body>
+<div id="errBox" hidden style="position:fixed;left:0;right:0;bottom:0;z-index:99;background:#3a0d0d;color:#ffd6d6;font:12px/1.4 ui-monospace,Menlo,monospace;padding:10px 16px calc(10px + env(safe-area-inset-bottom,0px));white-space:pre-wrap"></div>
+<script>
+  window.addEventListener("error",function(e){var u=(e.target&&(e.target.src||e.target.href))||"";if(u&&u.indexOf(location.origin)!==0)return;var b=document.getElementById("errBox");b.hidden=false;b.textContent+="FEHLER: "+(e.message||(e.target&&e.target.src)||(e.target&&e.target.href)||"unbekannt")+"\n";},true);
+  if("serviceWorker" in navigator){navigator.serviceWorker.getRegistrations().then(function(rs){rs.forEach(function(r){r.update();});});}
+</script>
 
 <!-- START + STATISTIK -->
 <main id="home" class="screen">
@@ -160,8 +165,8 @@
   </section>
 </main>
 
-<script src="exercises.js"></script>
-<script src="body3d.js"></script>
-<script src="app.js"></script>
+<script src="exercises.js?v=3"></script>
+<script src="body3d.js?v=3"></script>
+<script src="app.js?v=3"></script>
 </body>
 </html>
