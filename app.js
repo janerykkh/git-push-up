@@ -540,7 +540,11 @@ function merge(remote) {
   [...log, ...(remote.entries || [])].forEach((l) => { if (l && l.id && !del.has(l.id)) map.set(l.id, l); });
   log = [...map.values()].sort((a, b) => a.ts - b.ts);
   persistLog(); save(KEY.deleted, deleted);
-  if (remote.trainer && (remote.trainer.updated || 0) > (trainer.updated || 0)) { trainer = remote.trainer; save(KEY.trainer, trainer); }
+  // Eine echte Baseline schlägt immer eine leere; sonst gewinnt der neuere Stand
+  if (remote.trainer) {
+    const rHas = (remote.trainer.baselineDate || 0) > 0, lHas = (trainer.baselineDate || 0) > 0;
+    if ((rHas && !lHas) || (rHas === lHas && (remote.trainer.updated || 0) > (trainer.updated || 0))) { trainer = remote.trainer; save(KEY.trainer, trainer); }
+  }
 }
 async function gh(method, body) {
   const url = `https://api.github.com/repos/${backupCfg.repo}/contents/backup.json`;

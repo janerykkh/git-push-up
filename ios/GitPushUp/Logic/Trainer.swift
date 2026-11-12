@@ -115,6 +115,7 @@ extension Store {
         if !hasBaseline { state.trainer.baselineDate = nowMs() }
         recomputeTargets(keepReview: true)
         saveTrainer()
+        Task { await autoBackup(force: true) }
     }
 
     // MARK: Erschöpfung

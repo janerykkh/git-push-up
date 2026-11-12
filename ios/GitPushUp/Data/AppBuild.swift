@@ -1,4 +1,4 @@
 /// Wird bei jeder Änderung hochgezählt. Steht unten in den Einstellungen, damit man sieht, ob der neue Code auf dem iPhone ist.
 enum AppBuild {
-    static let id = "4 · Scrollen aus dem Stand"
+    static let id = "5 · Rekorde sofort sichern"
 }
