@@ -36,6 +36,7 @@ function estMax(ex) {
   return Math.max(1, markerValue(ex.marker) * (ex.factor || 1));
 }
 function roundTarget(ex, v) {
+  if (ex.cap) v = Math.min(ex.cap, v);
   return ex.unit === "sec" ? Math.max(10, Math.round(v / 5) * 5) : Math.max(1, Math.round(v));
 }
 function targetFor(ex) {
