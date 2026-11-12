@@ -16,6 +16,7 @@
 //   note      optionaler Warnhinweis
 //   cue       Ausführungshinweis
 //   muscles   { muskel: Gewicht }  1 = Hauptmuskel, 0.5 = Nebenmuskel, 0.25 = hilft mit
+//   prop      optionale Linien für Hilfsmittel (Tisch, Türrahmen) als [x1, y1, x2, y2]
 //   a, b      zwei Posen der Strichfigur (Seitenansicht, Boden bei y=150), die Animation pendelt zwischen ihnen.
 //             Gelenk-Reihenfolge: Kopf, Hals, Hüfte, Knie1, Fuß1, Knie2, Fuß2, Ellbogen1, Hand1, Ellbogen2, Hand2
 
@@ -65,7 +66,7 @@ const RECOVERY_HOURS = {
   glutes: 48, quads: 48, hamstrings: 48, calves: 30,
 };
 
-// Rekordtag: vier Markertests, alle 28 Tage. Jede Übung leitet ihr Maximum aus einem Marker ab (factor = Faustwert).
+// Rekordtag: fünf Markertests, alle 28 Tage. Jede Übung leitet ihr Maximum aus einem Marker ab (factor = Faustwert).
 const RECORD_EVERY_DAYS = 28;
 const MARKERS = [
   { id: "pushup",   label: "Liegestütze",  unit: "reps", fallback: 15,
@@ -74,6 +75,8 @@ const MARKERS = [
     how: "So viele Kniebeugen wie möglich am Stück, Oberschenkel mindestens parallel zum Boden." },
   { id: "plank",    label: "Unterarmstütz", unit: "sec", fallback: 45,
     how: "So lange halten wie möglich. Ende, sobald das Becken absackt oder nach oben wandert." },
+  { id: "tablerow", label: "Tischrudern",  unit: "reps", fallback: 10,
+    how: "Unter den Tisch, Kante schulterbreit greifen, Knie angewinkelt. So oft wie möglich die Brust zur Kante ziehen, Körper gerade von Knie bis Schulter." },
   { id: "superman", label: "Superman",     unit: "sec", fallback: 40,
     how: "Arme und Beine angehoben halten, so lange es sauber geht." },
 ];
@@ -119,6 +122,20 @@ const EXERCISES = [
     muscles: { frontDelt: 1, triceps: 1, upperBack: 0.5, chest: 0.25 },
     a: [[164,116],[152,108],[110,84],[86,117],[62,150],[88,117],[64,150],[158,130],[162,150],[160,130],[164,150]],
     b: [[166,140],[154,132],[110,90],[86,120],[62,150],[88,120],[64,150],[140,134],[162,150],[142,134],[164,150]] },
+
+  { id: "tablerow", marker: "tablerow", factor: 1.0, cap: 20, name: "Tischrudern", cat: "ziehen", unit: "reps", base: 6, step: 1, equipment: null,
+    cue: "Rücklings unter den Tisch, Kante schulterbreit greifen, Knie 90°. Brust zur Kante ziehen, Schulterblätter zusammen, langsam ablassen.",
+    note: "Vorher prüfen, dass der Tisch nicht zu dir kippen kann.",
+    prop: [[30, 76, 128, 76], [32, 76, 32, 150]],
+    muscles: { lats: 1, upperBack: 1, biceps: 0.5, rearDelt: 0.5, glutes: 0.25 },
+    a: [[60,130],[74,126],[118,128],[150,104],[160,150],[152,104],[162,150],[74,102],[76,78],[76,102],[78,78]],
+    b: [[60,94],[76,98],[118,108],[150,102],[160,150],[152,102],[162,150],[96,104],[80,78],[98,104],[82,78]] },
+
+  { id: "doorrow", prop: [[142, 20, 142, 150], [150, 20, 150, 150]], marker: "tablerow", factor: 1.0, cap: 15, name: "Türrahmen-Rudern", cat: "ziehen", unit: "reps", base: 8, step: 1, side: true, equipment: null,
+    cue: "Türrahmen mit einer Hand auf Brusthöhe greifen, Füße nah am Rahmen, zurücklehnen. Mit dem Ellbogen am Körper zum Rahmen ziehen. Je weiter die Füße vorne, desto schwerer.",
+    muscles: { lats: 1, upperBack: 0.5, biceps: 0.5, rearDelt: 0.5, obliques: 0.25 },
+    a: [[86,46],[92,60],[110,106],[120,128],[130,150],[118,128],[126,150],[116,62],[140,62],[96,82],[100,104]],
+    b: [[106,42],[110,56],[118,104],[124,127],[130,150],[122,127],[126,150],[102,72],[136,62],[112,78],[114,100]] },
 
   { id: "superman", marker: "superman", factor: 1.0, cap: 60, name: "Superman", cat: "ziehen", unit: "sec", base: 20, step: 5, equipment: null,
     cue: "Bauchlage, Arme lang nach vorne. Arme und Beine gleichzeitig anheben und halten.",

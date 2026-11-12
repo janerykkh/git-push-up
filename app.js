@@ -210,7 +210,7 @@ function renderHome() {
   $("roundInfo").textContent = first ? "EINMAL DEINE BASELINE MESSEN" : "";
   $("roundInfo").hidden = !first;
   $("recBanner").hidden = first || !recordDue();
-  $("recBanner").innerHTML = `REKORDTAG FÄLLIG <span>4 TESTS · ~10 MIN</span>`;
+  $("recBanner").innerHTML = `REKORDTAG FÄLLIG <span>5 TESTS · ~12 MIN</span>`;
   $("sysline").textContent = first ? "KALIBRIERUNG NÖTIG" : today.length ? "SYSTEME ONLINE" : "BEREIT";
   $("periodSeg").querySelectorAll("button").forEach((x) => x.setAttribute("aria-selected", x.dataset.p === period ? "true" : "false"));
   renderFatigue();
@@ -431,7 +431,7 @@ function renderRecord() {
   stopTimer();
   const first = !trainer.baselineDate;
   $("recIntro").textContent = (first
-    ? "Einmalige Kalibrierung: vier kurze Tests, daraus berechnet der Trainer deine Ziele. "
+    ? "Einmalige Kalibrierung: fünf kurze Tests, daraus berechnet der Trainer deine Ziele. "
     : "Alle vier Wochen: neue Rekorde, neue Baseline. ") +
     "Jeweils so viel wie sauber geht, dann aufhören. Zwischen den Tests 2–3 Minuten Pause. Du musst nicht alle auf einmal machen.";
   $("recList").innerHTML = MARKERS.map((m) => {
@@ -503,6 +503,7 @@ function drawFigure(ex, el) {
   el.innerHTML = `<svg viewBox="0 0 240 165" role="img" aria-label="Animation: ${ex.name}">
     <defs><filter id="fg-${ex.id}" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="2.2"/><feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
     ${grid}<line x1="6" y1="152" x2="234" y2="152" stroke="#1d3038" stroke-width="1"/>
+    ${(ex.prop || []).map(([x1, y1, x2, y2]) => `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#a8dde6" stroke-opacity="0.35" stroke-width="3" stroke-linecap="round"/>`).join("")}
     <g stroke="var(--${ex.cat})" fill="none" filter="url(#fg-${ex.id})">${lines}<circle r="9" stroke-width="3" fill="#04070a"/></g></svg>`;
   const svg = el.querySelector("svg");
   const ls = svg.querySelectorAll("g line"), head = svg.querySelector("circle");
