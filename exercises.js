@@ -105,7 +105,7 @@ const EXERCISES = [
     a: [[176,94],[162,102],[106,124],[78,136],[50,148],[78,136],[50,148],[164,126],[165,150],[166,126],[167,150]],
     b: [[178,124],[162,130],[106,139],[78,143],[50,148],[78,143],[50,148],[142,134],[165,150],[144,134],[167,150]] },
 
-  { id: "closepush", marker: "pushup", factor: 0.7, name: "Enge Liegestütze", cat: "druecken", unit: "reps", base: 6, step: 1, equipment: null,
+  { id: "closepush", marker: "pushup", factor: 0.45, name: "Enge Liegestütze", cat: "druecken", unit: "reps", base: 6, step: 1, equipment: null,
     cue: "Hände knapp schulterbreit, Ellbogen streifen beim Runtergehen die Rippen. Fokus auf den Trizeps.",
     muscles: { triceps: 1, chest: 0.5, frontDelt: 0.5, abs: 0.5 },
     a: [[176,94],[162,102],[106,124],[78,136],[50,148],[78,136],[50,148],[160,126],[160,150],[162,126],[162,150]],
