@@ -10,6 +10,7 @@ struct LabReportView: View {
     @State private var selected: Muscle?
     @State private var running: ActivePick? = nil
     @State private var done: DoneInfo? = nil
+    @State private var pulse: PulseAfter? = nil
 
     init(onClose: @escaping () -> Void, jump: ReportJump = .top) {
         self.onClose = onClose
@@ -67,10 +68,14 @@ struct LabReportView: View {
         }
         .background(LabBackdrop())
         .doneFlash($done)
+        .pulseAfterExercise($pulse, store: store)
         .fullScreenCover(item: $running) { pick in
             ActivityRunner(
                 pick: pick,
-                onDone: { d in running = nil; done = d },
+                onDone: { d in
+                    running = nil; done = d
+                    if let p = store.offerPulse(after: d) { DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { pulse = p } }
+                },
                 onSkip: { running = nil },
                 onClose: { running = nil }
             )

@@ -110,7 +110,7 @@ enum LabScene {
         case ring(x: Double, y: Double, z: Double, r0: Double, r1: Double)    // Ring in einer Ebene quer zur Blickrichtung
         case pipe(x: Double, y: Double, r: Double)                            // Rohr entlang der Tiefe
     }
-    private struct Obj { var shape: Shape; var col: RGB; var lamp = false }
+    private struct Obj { var shape: Shape; var col: RGB; var lamp = false; var glow = false }
 
     private static func objects() -> [Obj] {
         var O: [Obj] = []
@@ -122,34 +122,93 @@ enum LabScene {
         }
         func sph(_ x: Double, _ y: Double, _ z: Double, _ r: Double, _ c: RGB) { O.append(Obj(shape: .sph(x: x, y: y, z: z, r: r), col: c)) }
 
-        // Links: lange Laborbank mit Glaswaren und Geräten, darüber ein Regalbrett mit Flaschen
+        func c3(_ r: Int, _ g: Int, _ b: Int) -> RGB { (UInt8(clamping: r), UInt8(clamping: g), UInt8(clamping: b)) }
+        /// Topf, daraus sieben gebogene Stiele mit Blättern
+        func plant(_ x: Double, _ yBase: Double, _ z: Double, _ s: Double, _ L: (Int, Int, Int)) {
+            cyl(x, z, 0.15 * s, yBase - 0.26 * s, yBase, (226, 226, 222))
+            cyl(x, z, 0.16 * s, yBase - 0.28 * s, yBase - 0.24 * s, (200, 200, 196))
+            for k in 0..<7 {
+                let a = Double(k) * 2.4 + x * 3 + z
+                let out = 0.35 + Double((k * 37) % 10) / 25, up = 0.55 + Double((k * 53) % 10) / 22
+                var t = 0.15
+                while t <= 1.001 {
+                    let px = x + cos(a) * t * out * s
+                    let py = yBase - 0.26 * s - (t * up - t * t * 0.35) * s
+                    let pz = z + sin(a) * t * out * s
+                    let sh = Double(k % 3) * 18 - 18 + t * 20
+                    sph(px, py, pz, (0.075 - 0.03 * t) * s, c3(L.0 + Int(sh), L.1 + Int(sh), L.2 + Int(sh * 0.6)))
+                    t += 0.12
+                }
+            }
+        }
+        func scope(_ x: Double, _ yb: Double, _ z: Double) {
+            box(x - 0.14, x + 0.14, yb - 0.04, yb, z - 0.12, z + 0.12, (60, 66, 72))
+            box(x + 0.06, x + 0.11, yb - 0.42, yb - 0.04, z - 0.04, z + 0.04, (70, 76, 82))
+            cyl(x - 0.02, z, 0.045, yb - 0.5, yb - 0.22, (230, 232, 234))
+            box(x - 0.1, x + 0.08, yb - 0.2, yb - 0.17, z - 0.1, z + 0.1, (200, 204, 206))
+            sph(x - 0.02, yb - 0.52, z, 0.05, (40, 44, 48))
+        }
+        let vivid: [RGB] = [(236, 120, 80), (90, 200, 180), (176, 130, 230), (240, 206, 90), (120, 190, 240)]
+
+        // Links: lange Laborbank mit Pflanzen, Mikroskopen, Kolben, Gläsern, Reagenzgläsern
         box(-4.2, -2.9, 0.62, 1.5, 3.5, 15, (150, 158, 164))
         box(-4.2, -2.85, 0.55, 0.62, 3.5, 15, (236, 236, 233))
-        var z = 4.0
-        while z < 14.5 {
-            switch Int((z * 7).rounded()) % 4 {
-            case 0: cyl(-3.4, z, 0.13, 0.15, 0.55, (226, 234, 234))
-            case 1: cyl(-3.5, z, 0.07, 0.05, 0.55, (226, 234, 234)); sph(-3.5, 0.38, z, 0.2, (150, 200, 192))
-            case 2: box(-3.75, -3.25, 0.2, 0.55, z - 0.2, z + 0.2, (90, 98, 104))
-            default: cyl(-3.3, z, 0.09, 0.25, 0.55, (236, 176, 146))
+        let items = ["plant", "flask", "scope", "jar", "plant2", "tubes", "flask", "scope", "plant", "jar"]
+        for (i, it) in items.enumerated() {
+            let z = 4.3 + Double(i) * 1.08
+            switch it {
+            case "plant": plant(-3.45, 0.55, z, 1, (96, 168, 120))
+            case "plant2": plant(-3.45, 0.55, z, 1.2, (110, 150, 190))
+            case "scope": scope(-3.5, 0.55, z)
+            case "flask":
+                cyl(-3.5, z, 0.07, 0.05, 0.55, (226, 234, 234))
+                let fc: [RGB] = [(230, 120, 60), (90, 190, 170), (160, 120, 220)]
+                sph(-3.5, 0.38, z, 0.2, fc[i % 3])
+            case "jar":
+                let jc: [RGB] = [(240, 200, 80), (230, 110, 90), (110, 200, 190)]
+                cyl(-3.55, z, 0.16, 0.12, 0.55, jc[i % 3])
+                cyl(-3.55, z, 0.17, 0.07, 0.12, (60, 66, 72))
+            default:
+                let tc: [RGB] = [(240, 90, 60), (90, 200, 170), (170, 120, 230), (240, 200, 70)]
+                for k in 0..<4 { cyl(-3.75 + Double(k) * 0.13, z, 0.04, 0.2, 0.55, tc[k]) }
+                box(-3.82, -3.3, 0.38, 0.44, z - 0.06, z + 0.06, (200, 204, 206))
             }
-            z += 1.15
         }
+        // Regalbrett links mit bunten Flaschen
         box(-4.2, -3.4, -0.95, -0.88, 3.5, 15, (200, 200, 196))
-        z = 4.2
+        var z = 4.2
         while z < 14 {
-            let v = Int(z * 10) % 3
-            cyl(-3.8, z, 0.08, -1.25, -0.95, v != 0 ? (210, 214, 220) : (186, 200, 220))
+            cyl(-3.8, z, 0.09, -1.28, -0.95, vivid[Int((z * 10).rounded()) % 5])
             z += 0.7
         }
-        // Rechts: drei Kryotanks mit Kuppel, Sichtfenster und Lämpchen, dahinter ein Rechnerschrank
+        // Rechts: drei Kryotanks mit Kuppel, farbigem Sichtfenster und Lämpchen
         for tz in [7.0, 9.6, 12.2] {
             cyl(3.2, tz, 0.6, -0.6, 1.5, (178, 186, 190))
             sph(3.2, -0.6, tz, 0.6, (196, 202, 206))
-            box(2.55, 2.62, 0.05, 0.4, tz - 0.2, tz + 0.2, (120, 190, 180))
+            let liquids: [RGB] = [(90, 200, 180), (240, 150, 70), (170, 120, 230)]
+            let liquid = liquids[Int(tz.rounded()) % 3]
+            box(2.56, 2.62, -0.35, 0.95, tz - 0.22, tz + 0.22, (200, 210, 212))
+            box(2.55, 2.62, 0.15, 0.95, tz - 0.2, tz + 0.2, liquid)
             box(2.56, 2.62, -0.25, -0.15, tz - 0.06, tz + 0.06, orange)
         }
-        box(2.75, 4.2, -1.3, 1.5, 14, 18.5, (78, 86, 92))
+        box(2.75, 4.2, -1.3, 1.5, 14, 15.6, (78, 86, 92))
+        // Regal rechts über den Tanks mit bunten Flaschen
+        box(3.5, 4.2, -1.42, -1.36, 5, 13.5, (200, 200, 196))
+        z = 5.3
+        while z < 13.3 {
+            cyl(3.85, z, 0.1, -1.75, -1.42, vivid[Int((z * 7).rounded()) % 5])
+            z += 0.55
+        }
+        // Zuchtregal hinten links: Pflanzen unter violettem Licht
+        for y in [-0.9, 0.2] {
+            box(-4.2, -3.0, y, y + 0.06, 15.6, 18.8, (180, 186, 190))
+            O.append(Obj(shape: .box(x0: -4.2, x1: -3.0, y0: y - 0.95, y1: y - 0.9, z0: 15.6, z1: 18.8), col: (236, 130, 230), glow: true))
+            var pz = 16.0
+            while pz < 18.6 { plant(-3.6, y, pz, 0.8, (120, 200, 140)); pz += 0.6 }
+        }
+        // große Pflanzen am Boden
+        plant(-2.5, 1.5, 7.2, 1.7, (70, 150, 100))
+        plant(2.2, 1.5, 14.6, 2, (80, 160, 150))
         // Mitte hinten: Ringscanner mit Liege
         O.append(Obj(shape: .ring(x: 0, y: -0.05, z: 16, r0: 1.1, r1: 1.5), col: (150, 156, 160)))
         box(-0.7, 0.7, 1.15, 1.5, 15.6, 16.4, (180, 184, 186))
@@ -208,6 +267,7 @@ enum LabScene {
         var n = (0.0, 0.0, -1.0)
         var room = true
         var lamp = false
+        var glow = false
         // Raumflächen
         let cand: [(Surface, Double, (Double, Double, Double))] = [
             (.floor, dy > 0 ? (floorY - oy) / dy : 1e9, (0, -1, 0)),
@@ -280,7 +340,7 @@ enum LabScene {
                 }
             }
             if t < 1e9 && t * dz < bestZ {
-                bestZ = t * dz; col = o.col; n = nn; room = false; lamp = o.lamp
+                bestZ = t * dz; col = o.col; n = nn; room = false; lamp = o.lamp; glow = o.glow
             }
         }
         // Licht von oben vorne links, dazu Umgebungslicht
@@ -288,6 +348,7 @@ enum LabScene {
         let lam = max(0, -(n.0 * L.0 + n.1 * L.1 + n.2 * L.2) / ll)
         let k = room ? 0.9 + 0.1 * lam : 0.72 + 0.34 * lam
         if lamp { return (white, bestZ) }
+        if glow { return (col, bestZ) }
         return ((UInt8(clamping: Int(Double(col.0) * k)), UInt8(clamping: Int(Double(col.1) * k)), UInt8(clamping: Int(Double(col.2) * k))), bestZ)
     }
 
@@ -302,7 +363,7 @@ enum LabScene {
             for i in 0..<w {
                 let dx = (Double(i) + 0.5 - G.cx) / F, dy = (Double(j) + 0.5 - G.hy) / F
                 let (col, z) = trace(0.25, 0, dx, dy, O)
-                let f = min(0.78, 1 - exp(-(z - 2) / 16))
+                let f = min(0.66, 1 - exp(-(z - 2) / 22))
                 let q = (bayer[j & 3][i & 3] / 16 - 0.5) * 10
                 func ch(_ v: UInt8, _ hz: UInt8) -> UInt8 {
                     let x = Double(v) * (1 - f) + Double(hz) * f

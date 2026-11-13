@@ -81,6 +81,8 @@ struct CreatureState: Codable, Equatable {
     var name: String
     /// Wann du es bewusst geändert hast (neues Ei, Umbenennen). Automatisch gelegte Eier haben 0.
     var updated: Millis? = nil
+    /// Aus der Brutstätte gewählt (ältere, automatisch gelegte Eier haben das nicht: dann kommt einmal die Auswahl)
+    var hatched: Bool? = nil
 }
 
 /// Alles, was lokal gespeichert wird (eine JSON-Datei im App-Ordner, nirgends sonst)
@@ -99,6 +101,8 @@ struct PersistedState: Codable {
     var muscleScale: [String: Double] = [:]
     var protein: [ProteinEntry] = []
     var creature: CreatureState?
+    /// Nach Kraftübungen anbieten, den Puls zu messen
+    var pulseAfter: Bool = true
 }
 
 /// Format der backup.json im privaten Repo (gleich wie bei der Web-App)
@@ -140,5 +144,6 @@ extension PersistedState {
         muscleScale = try c.decodeIfPresent([String: Double].self, forKey: .muscleScale) ?? [:]
         protein = try c.decodeIfPresent([ProteinEntry].self, forKey: .protein) ?? []
         creature = try c.decodeIfPresent(CreatureState.self, forKey: .creature)
+        pulseAfter = try c.decodeIfPresent(Bool.self, forKey: .pulseAfter) ?? true
     }
 }

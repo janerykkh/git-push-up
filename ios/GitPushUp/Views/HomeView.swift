@@ -41,7 +41,6 @@ struct HomeView: View {
             }
         }
         .background(Color.bg.ignoresSafeArea())
-        .onAppear { store.ensureCreature() }
         .alert("Name", isPresented: $renaming) {
             TextField("Name", text: $newName)
             Button("Abbrechen", role: .cancel) {}

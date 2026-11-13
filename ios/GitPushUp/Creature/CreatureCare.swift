@@ -92,19 +92,12 @@ enum CreatureModel {
 
 extension Store {
 
-    /// Beim ersten Start ein Ei legen
-    func ensureCreature() {
-        guard state.creature == nil else { return }
-        let seed = Int.random(in: 1...999_998)
-        state.creature = CreatureState(seed: seed, born: nowMs(), name: CreatureModel.syllableName(seed))
-        save()
-    }
+    /// Muss die Brutstätte gezeigt werden? (noch kein Wesen oder nur ein automatisch gelegtes)
+    var needsHatching: Bool { state.creature?.hatched != true }
 
-    /// Neues Ei: anderes Wesen, Wachstum beginnt von vorn (das Trainingsprotokoll bleibt)
+    /// Neues Ei: zurück in die Brutstätte (das Trainingsprotokoll bleibt)
     func layNewEgg() {
-        let seed = Int.random(in: 1...999_998)
-        let now = nowMs()
-        state.creature = CreatureState(seed: seed, born: now, name: CreatureModel.syllableName(seed), updated: now)
+        state.creature = nil
         save()
     }
 

@@ -48,6 +48,16 @@ struct SettingsView: View {
                     }
                 }
 
+                Block(title: "PULS") {
+                    Toggle("NACH KRAFTÜBUNGEN MESSEN", isOn: Binding(
+                        get: { store.state.pulseAfter },
+                        set: { store.state.pulseAfter = $0; store.save() }
+                    ))
+                    .font(mono(13)).tint(.signal)
+                    Text("Kurz nach jeder Kraftübung öffnet sich die Pulsmessung. Schließen überspringt sie. Die Messung wird mit der Übung gespeichert.")
+                        .font(mono(11)).foregroundStyle(Color.muted).fixedSize(horizontal: false, vertical: true)
+                }
+
                 Block(title: "BACKUP AUF GITHUB") {
                     Text("Sichert deinen Verlauf einmal am Tag in dein privates Repo. Der Token liegt nur im Schlüsselbund dieses iPhones. Mit „Aus Backup laden“ holst du auch deinen Verlauf aus der Web-App.")
                         .font(mono(12)).foregroundStyle(Color.muted).fixedSize(horizontal: false, vertical: true)
@@ -123,8 +133,8 @@ struct SettingsView: View {
         }
         .scrollDismissesKeyboard(.interactively)
         .background(LabBackdrop())
-        .confirmationDialog("Neues Ei legen? Das jetzige Wesen verschwindet, das neue wächst von vorn. Dein Trainingsverlauf bleibt.", isPresented: $confirmEgg, titleVisibility: .visible) {
-            Button("Neues Ei legen", role: .destructive) { store.layNewEgg(); creatureName = store.state.creature?.name ?? "" }
+        .confirmationDialog("Zurück in die Brutstätte? Das jetzige Wesen verschwindet, du wählst ein neues Ei und es wächst von vorn. Dein Trainingsverlauf bleibt.", isPresented: $confirmEgg, titleVisibility: .visible) {
+            Button("Neues Ei wählen", role: .destructive) { store.layNewEgg(); onClose() }
             Button("Abbrechen", role: .cancel) {}
         }
         .confirmationDialog(deleteText, isPresented: $confirmDelete, titleVisibility: .visible) {

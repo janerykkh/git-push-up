@@ -5,7 +5,15 @@ import UIKit
 struct ActivePick: Identifiable { let id = UUID(); let ex: Exercise; let boss: Bool }
 
 /// Rückmeldung nach einer Übung (kurzer Stempel über dem Bildschirm)
-struct DoneInfo: Equatable { let stamp: String; let text: String; let partly: Bool }
+struct DoneInfo: Equatable {
+    let stamp: String; let text: String; let partly: Bool
+    /// Welche Übung (für die Pulsmessung danach)
+    var exId: String? = nil
+    var strength = false
+}
+
+/// Pulsmessung direkt nach einer Übung
+struct PulseAfter: Identifiable { let id = UUID(); let exId: String }
 
 /// Führt eine Übung durch und trägt sie ein: Kraft und Dehnen über ExerciseView, Meditation über den Timer.
 /// Wird vom Startbildschirm (GO, +) und aus der Laborakte heraus benutzt.
@@ -22,7 +30,7 @@ struct ActivityRunner: View {
             MeditationView(
                 onFinish: { secs, complete in
                     store.logResult(ex, target: 300, actual: secs, done: complete)
-                    onDone(DoneInfo(stamp: "NEURO-SYNC", text: "\(secs / 60) Minuten Meditation", partly: !complete))
+                    onDone(DoneInfo(stamp: "NEURO-SYNC", text: "\(secs / 60) Minuten Meditation", partly: !complete, exId: ex.id))
                 },
                 onSkip: onSkip,
                 onClose: onClose
@@ -37,11 +45,12 @@ struct ActivityRunner: View {
                     let side = ex.side ? " pro Seite" : ""
                     if pick.boss {
                         let record = store.checkBossRecord(ex, actual: actual)
-                        onDone(DoneInfo(stamp: record ? "NEUER REKORD" : "BOSS BESIEGT", text: "\(actual)\(u) \(ex.name)\(side)", partly: false))
+                        onDone(DoneInfo(stamp: record ? "NEUER REKORD" : "BOSS BESIEGT", text: "\(actual)\(u) \(ex.name)\(side)", partly: false,
+                                        exId: ex.id, strength: true))
                     } else {
                         onDone(DoneInfo(stamp: ok ? (ex.kind == .stretch ? "GEWEBE GELÖST" : "PROBE ERFASST") : "TEILPROBE",
                                         text: ok ? "\(target)\(u) \(ex.name)\(side)" : "\(actual) von \(target)\(u) \(ex.name)",
-                                        partly: !ok))
+                                        partly: !ok, exId: ex.id, strength: ex.kind == .strength))
                     }
                 },
                 onSkip: onSkip,
@@ -76,6 +85,23 @@ struct DoneFlash: ViewModifier {
 
 extension View {
     func doneFlash(_ item: Binding<DoneInfo?>) -> some View { modifier(DoneFlash(item: item)) }
+
+    /// Nach einer Kraftübung (wenn eingeschaltet) kurz nach dem Stempel die Pulsmessung öffnen.
+    /// Schließen geht jederzeit, dann wird nichts gespeichert.
+    func pulseAfterExercise(_ item: Binding<PulseAfter?>, store: Store) -> some View {
+        fullScreenCover(item: item) { p in
+            PulseView(onClose: { item.wrappedValue = nil }, afterExercise: p.exId)
+                .environmentObject(store)
+        }
+    }
+}
+
+extension Store {
+    /// Nach dieser Rückmeldung den Puls anbieten?
+    func offerPulse(after d: DoneInfo) -> PulseAfter? {
+        guard state.pulseAfter, d.strength, let id = d.exId else { return nil }
+        return PulseAfter(exId: id)
+    }
 }
 
 /// Der +-Knopf: jede Übung direkt auswählen und sofort machen

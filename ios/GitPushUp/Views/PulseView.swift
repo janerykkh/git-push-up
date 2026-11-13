@@ -7,6 +7,8 @@ import UIKit
 struct PulseView: View {
     @EnvironmentObject var store: Store
     let onClose: () -> Void
+    /// Gesetzt, wenn direkt nach einer Übung gemessen wird: wird mit der Messung gespeichert
+    var afterExercise: String? = nil
 
     @StateObject private var trigger = VolumeTrigger()
     @State private var startedAt: Date? = nil
@@ -25,7 +27,7 @@ struct PulseView: View {
                         Text("← ZURÜCK").font(mono(12)).tracking(1).foregroundStyle(Color.muted).frame(minHeight: 44)
                     }
                     Spacer()
-                    Text("PULS").font(mono(15, .bold)).tracking(2).foregroundStyle(Color.danger).glow(.danger, 6)
+                    Text(afterExercise == nil ? "PULS" : "PULS NACH ÜBUNG").font(mono(15, .bold)).tracking(2).foregroundStyle(Color.danger)
                     Spacer()
                     Color.clear.frame(width: 70, height: 1)
                 }
@@ -124,7 +126,7 @@ struct PulseView: View {
     }
 
     private func save(_ bpm: Int) {
-        let r = PulseReading(id: LogEntry.newId(), ts: nowMs(), bpm: bpm, quality: 1, motion: 0, mode: "count")
+        let r = PulseReading(id: LogEntry.newId(), ts: nowMs(), bpm: bpm, quality: 1, motion: 0, mode: afterExercise.map { "nach:" + $0 } ?? "count")
         store.state.pulse.append(r)
         store.save()
         lastResult = bpm
@@ -140,7 +142,7 @@ struct PulseView: View {
         HStack(spacing: 12) {
             Text("\(r.bpm)").font(mono(18, .bold)).monospacedDigit().foregroundStyle(Color.danger).frame(width: 48, alignment: .leading)
             VStack(alignment: .leading, spacing: 2) {
-                Text(r.mode == "count" ? "gezählt" : (r.mode == "arm" ? "Kamera · Oberarm" : "Kamera · Finger"))
+                Text(r.mode.hasPrefix("nach:") ? "nach \(Exercise.byId[String(r.mode.dropFirst(5))]?.name ?? "Übung")" : (r.mode == "count" ? "gezählt" : (r.mode == "arm" ? "Kamera · Oberarm" : "Kamera · Finger")))
                     .font(mono(12)).foregroundStyle(Color.fg)
                 Text(fmtTime(r.ts)).font(mono(10.5)).foregroundStyle(Color.muted)
             }

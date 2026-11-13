@@ -29,6 +29,7 @@ struct RootView: View {
     @State private var showPulse = false
     @State private var done: DoneInfo? = nil
     @State private var report: ReportReq? = nil
+    @State private var pulse: PulseAfter? = nil
 
     struct ReportReq: Identifiable { let id = UUID(); let jump: ReportJump }
 
@@ -38,6 +39,14 @@ struct RootView: View {
     }
 
     var body: some View {
+        if store.needsHatching {
+            EggSelectView().transition(.opacity)
+        } else {
+            main
+        }
+    }
+
+    private var main: some View {
         HomeView(
             onGo: { exercise = pickNext() },
             onPickExercise: { showPicker = true },
@@ -50,12 +59,16 @@ struct RootView: View {
         .fullScreenCover(item: $exercise) { pick in
             ActivityRunner(
                 pick: pick,
-                onDone: { d in exercise = nil; done = d },
+                onDone: { d in
+                    exercise = nil; done = d
+                    if let p = store.offerPulse(after: d) { DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { pulse = p } }
+                },
                 onSkip: { exercise = pickNext(excluding: pick.ex.id) },
                 onClose: { exercise = nil }
             )
             .environmentObject(store)
         }
+        .pulseAfterExercise($pulse, store: store)
         .fullScreenCover(item: $report) { r in
             LabReportView(onClose: { report = nil }, jump: r.jump)
                 .environmentObject(store)

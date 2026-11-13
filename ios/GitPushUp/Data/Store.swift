@@ -18,7 +18,6 @@ final class Store: ObservableObject {
 
     init() {
         load()
-        ensureCreature()
         weeklyReview()
     }
 
