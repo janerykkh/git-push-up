@@ -49,12 +49,12 @@ struct SettingsView: View {
                 }
 
                 Block(title: "PULS") {
-                    Toggle("NACH KRAFTÜBUNGEN MESSEN", isOn: Binding(
+                    Toggle("MESSUNGEN ANBIETEN", isOn: Binding(
                         get: { store.state.pulseAfter },
                         set: { store.state.pulseAfter = $0; store.save() }
                     ))
                     .font(mono(13)).tint(.signal)
-                    Text("Kurz nach jeder Kraftübung öffnet sich die Pulsmessung. Schließen überspringt sie. Die Messung wird mit der Übung gespeichert.")
+                    Text("Morgens fragt die App nach dem Ruhepuls. Vor und nach der Meditation wird gemessen, nach Boss-Sätzen und Rekordtests der Erholungspuls (direkt danach und nach einer Minute). Überspringen geht immer.")
                         .font(mono(11)).foregroundStyle(Color.muted).fixedSize(horizontal: false, vertical: true)
                 }
 

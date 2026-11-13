@@ -10,6 +10,7 @@ struct RecordView: View {
     @State private var input = ""
     @State private var timerStart: Date? = nil
     @FocusState private var inputFocused: Bool
+    @State private var pulse: PulseAfter? = nil
 
     var body: some View {
         ScrollViewReader { proxy in
@@ -55,6 +56,7 @@ struct RecordView: View {
             }
         }
         .background(LabBackdrop())
+        .pulseAfterExercise($pulse, store: store)
         .onAppear {
             if selected == nil && store.state.trainer.pending.isEmpty { open(Marker.all[0].id) }
         }
@@ -124,6 +126,8 @@ struct RecordView: View {
                     timerStart = nil
                     inputFocused = false
                     store.saveTest(m, value: v)
+                    // Erholungspuls: vor dem nächsten Test ist eh eine Pause
+                    if store.state.pulseAfter { pulse = PulseAfter(context: .recovery(m.id)) }
                     if let next = Marker.all.first(where: { store.state.trainer.pending[$0.id] == nil }) { open(next.id) }
                     else { selected = nil }
                 }

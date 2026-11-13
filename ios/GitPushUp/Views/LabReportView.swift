@@ -38,6 +38,7 @@ struct LabReportView: View {
                     VStack(alignment: .leading, spacing: 16) {
                         header
                         biomarkerPanel(bio)
+                        pulsePanel(store.pulseStats())
                         Color.clear.frame(height: 0).id("scanTop")
                         scan(f)
                         if let m = selected { muscleInfo(m, f).id("info") }
@@ -121,6 +122,55 @@ struct LabReportView: View {
                 Text("\(v) / \(target) \(unit)").font(mono(13, .bold)).foregroundStyle(v >= target ? Color.signal : Color.fg)
             }
             SegMeter(value: Double(v) / Double(max(1, target)), color: .signal, segments: target, height: 8)
+        }
+    }
+
+    // MARK: Puls
+
+    private func pulsePanel(_ p: Store.PulseStats) -> some View {
+        Block(title: "PULS", trailing: "RUHE · MEDITATION · ERHOLUNG", accent: .danger) {
+            HStack(alignment: .bottom, spacing: 10) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Label12(text: "RUHEPULS", color: .fg, size: 10)
+                    Text(p.restLast.map { "\($0)" } ?? "--").font(display(30)).foregroundStyle(Color.danger)
+                }
+                // 14 Tage Ruhepuls als Pixel-Säulen
+                GeometryReader { g in
+                    Canvas { ctx, size in
+                        let vals = p.restDaily.compactMap { $0 }
+                        guard let lo = vals.min(), let hi = vals.max() else { return }
+                        let span = max(6, hi - lo)
+                        let bw = snap(size.width / 14) - PX
+                        for (i, v) in p.restDaily.enumerated() {
+                            let x = snap(CGFloat(i) * size.width / 14)
+                            guard let v else {
+                                ctx.fill(Path(CGRect(x: x, y: size.height - PX, width: bw, height: PX)), with: .color(Color.line))
+                                continue
+                            }
+                            let hgt = snap(CGFloat((v - lo + span * 0.3) / (span * 1.3)) * size.height)
+                            ctx.fill(Path(CGRect(x: x, y: size.height - hgt, width: bw, height: hgt)), with: .color(Color.danger.opacity(0.75)))
+                        }
+                    }
+                }
+                .frame(height: 40)
+            }
+            Text("14 Tage. Sinkt mit der Fitness; ein Morgen deutlich über dem Schnitt heißt oft: schlecht erholt.")
+                .font(mono(10)).foregroundStyle(Color.dim).fixedSize(horizontal: false, vertical: true)
+            Rectangle().fill(Color.line).frame(height: PX / 2)
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Label12(text: "MEDITATION", color: .fg, size: 10)
+                    Text(p.medDrop.map { String(format: "−%.0f", $0) } ?? "--").font(display(26)).foregroundStyle(Color.mind)
+                    Text(p.medPairs > 0 ? "Schläge im Schnitt, \(p.medPairs) Sitzungen" : "vorher/nachher fehlt").font(mono(9)).foregroundStyle(Color.dim)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                VStack(alignment: .leading, spacing: 2) {
+                    Label12(text: "ERHOLUNG 1 MIN", color: .fg, size: 10)
+                    Text(p.recoveryDrop.map { String(format: "−%.0f", $0) } ?? "--").font(display(26)).foregroundStyle(Color.fg)
+                    Text(p.recoveryN > 0 ? "Schläge im Schnitt, \(p.recoveryN) Messungen" : "nach Boss-Satz/Rekordtest").font(mono(9)).foregroundStyle(Color.dim)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
         }
     }
 

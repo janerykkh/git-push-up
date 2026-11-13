@@ -26,7 +26,6 @@ struct RootView: View {
     @State private var showPicker = false
     @State private var showRecord = false
     @State private var showSettings = false
-    @State private var showPulse = false
     @State private var done: DoneInfo? = nil
     @State private var report: ReportReq? = nil
     @State private var pulse: PulseAfter? = nil
@@ -52,7 +51,7 @@ struct RootView: View {
             onPickExercise: { showPicker = true },
             onRecord: { showRecord = true },
             onSettings: { showSettings = true },
-            onPulse: { showPulse = true },
+            onPulse: { pulse = PulseAfter(context: $0) },
             onReport: { report = ReportReq(jump: $0) }
         )
         .doneFlash($done)
@@ -102,10 +101,6 @@ struct RootView: View {
                 }
             )
             .environmentObject(store)
-        }
-        .fullScreenCover(isPresented: $showPulse) {
-            PulseView(onClose: { showPulse = false })
-                .environmentObject(store)
         }
         .onChange(of: scenePhase) { phase in
             if phase == .active { store.weeklyReview() }

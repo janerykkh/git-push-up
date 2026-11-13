@@ -8,7 +8,7 @@ struct HomeView: View {
     let onPickExercise: () -> Void
     let onRecord: () -> Void
     let onSettings: () -> Void
-    let onPulse: () -> Void
+    let onPulse: (PulseContext) -> Void
     let onReport: (ReportJump) -> Void
 
     @State private var previewG: Double? = nil
@@ -30,6 +30,7 @@ struct HomeView: View {
                         careStrip
                         traitGauges(v)
                         eegBox
+                        if store.restPulseDue { restPrompt }
                         Spacer(minLength: 0)
                         bottomBar
                     }
@@ -241,6 +242,24 @@ struct HomeView: View {
         .pixelBorder()
     }
 
+    /// Morgens, solange noch kein Ruhepuls gemessen ist
+    private var restPrompt: some View {
+        Button { onPulse(.rest) } label: {
+            HStack(spacing: 8) {
+                Rectangle().fill(Color.danger).frame(width: PX * 3, height: PX * 3)
+                Text("RUHEPULS MESSEN").font(labelFont(10)).tracking(0.8)
+                Text("// MORGENWERT FEHLT").font(mono(9)).foregroundStyle(Color.muted)
+                Spacer()
+                PixelIcon(rows: PixelIcon.arrow, color: .fg)
+            }
+            .foregroundStyle(Color.fg)
+            .padding(.horizontal, 8).frame(height: 30)
+            .pixelBorder(.danger)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(PressStyle())
+    }
+
     // MARK: Leiste unten
 
     private var bottomBar: some View {
@@ -281,7 +300,7 @@ struct HomeView: View {
             .buttonStyle(PressStyle())
 
             PixelToolButton(icon: PixelIcon.plus, label: "Übung wählen", action: onPickExercise).frame(width: 40)
-            PixelToolButton(icon: PixelIcon.pulse, label: "Puls", action: onPulse).frame(width: 40)
+            PixelToolButton(icon: PixelIcon.pulse, label: "Puls", action: { onPulse(.free) }).frame(width: 40)
             PixelToolButton(icon: PixelIcon.gear, label: "Einstellungen", action: onSettings).frame(width: 40)
         }
         .frame(height: 62)

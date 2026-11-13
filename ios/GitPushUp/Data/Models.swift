@@ -62,7 +62,12 @@ struct PulseReading: Codable, Identifiable, Equatable {
     var bpm: Int
     var quality: Double
     var motion: Double
+    /// Anlass: "rest", "med-vor", "med-nach", "hrr:<übung>", "frei"; alt: "count", "nach:<übung>", "finger", "arm"
     var mode: String
+    /// Erholungspuls: zweiter Wert eine Minute nach dem ersten
+    var bpm2: Int? = nil
+    /// "kamera" oder "tasten"
+    var source: String? = nil
 }
 
 /// Eine Protein-Portion (1 ≈ 25 g). Halbe oder Dreiviertel-Portionen sind erlaubt.

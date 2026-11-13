@@ -10,10 +10,11 @@ struct DoneInfo: Equatable {
     /// Welche Übung (für die Pulsmessung danach)
     var exId: String? = nil
     var strength = false
+    var boss = false
 }
 
-/// Pulsmessung direkt nach einer Übung
-struct PulseAfter: Identifiable { let id = UUID(); let exId: String }
+/// Eine Pulsmessung, die sich von selbst öffnet (Erholungspuls nach Boss-Satz oder Rekordtest)
+struct PulseAfter: Identifiable { let id = UUID(); let context: PulseContext }
 
 /// Führt eine Übung durch und trägt sie ein: Kraft und Dehnen über ExerciseView, Meditation über den Timer.
 /// Wird vom Startbildschirm (GO, +) und aus der Laborakte heraus benutzt.
@@ -24,17 +25,30 @@ struct ActivityRunner: View {
     let onSkip: () -> Void
     let onClose: () -> Void
 
+    /// Meditation: Puls vorher, Timer, Puls nachher (Pulsmessungen nur, wenn eingeschaltet)
+    enum MedStep { case before, sitting, after }
+    @State private var medStep: MedStep? = nil
+    @State private var medResult: DoneInfo? = nil
+
     var body: some View {
         let ex = pick.ex
         if ex.kind == .mind {
-            MeditationView(
-                onFinish: { secs, complete in
-                    store.logResult(ex, target: 300, actual: secs, done: complete)
-                    onDone(DoneInfo(stamp: "NEURO-SYNC", text: "\(secs / 60) Minuten Meditation", partly: !complete, exId: ex.id))
-                },
-                onSkip: onSkip,
-                onClose: onClose
-            )
+            switch medStep ?? (store.state.pulseAfter ? .before : .sitting) {
+            case .before:
+                PulseView(context: .medBefore, onClose: { medStep = .sitting })
+            case .sitting:
+                MeditationView(
+                    onFinish: { secs, complete in
+                        store.logResult(ex, target: 300, actual: secs, done: complete)
+                        let d = DoneInfo(stamp: "NEURO-SYNC", text: "\(secs / 60) Minuten Meditation", partly: !complete, exId: ex.id)
+                        if store.state.pulseAfter && complete { medResult = d; medStep = .after } else { onDone(d) }
+                    },
+                    onSkip: onSkip,
+                    onClose: onClose
+                )
+            case .after:
+                PulseView(context: .medAfter, onClose: { onDone(medResult ?? DoneInfo(stamp: "NEURO-SYNC", text: "Meditation", partly: false)) })
+            }
         } else {
             ExerciseView(
                 ex: ex,
@@ -46,7 +60,7 @@ struct ActivityRunner: View {
                     if pick.boss {
                         let record = store.checkBossRecord(ex, actual: actual)
                         onDone(DoneInfo(stamp: record ? "NEUER REKORD" : "BOSS BESIEGT", text: "\(actual)\(u) \(ex.name)\(side)", partly: false,
-                                        exId: ex.id, strength: true))
+                                        exId: ex.id, strength: true, boss: true))
                     } else {
                         onDone(DoneInfo(stamp: ok ? (ex.kind == .stretch ? "GEWEBE GELÖST" : "PROBE ERFASST") : "TEILPROBE",
                                         text: ok ? "\(target)\(u) \(ex.name)\(side)" : "\(actual) von \(target)\(u) \(ex.name)",
@@ -90,17 +104,17 @@ extension View {
     /// Schließen geht jederzeit, dann wird nichts gespeichert.
     func pulseAfterExercise(_ item: Binding<PulseAfter?>, store: Store) -> some View {
         fullScreenCover(item: item) { p in
-            PulseView(onClose: { item.wrappedValue = nil }, afterExercise: p.exId)
+            PulseView(context: p.context, onClose: { item.wrappedValue = nil })
                 .environmentObject(store)
         }
     }
 }
 
 extension Store {
-    /// Nach dieser Rückmeldung den Puls anbieten?
+    /// Nach einem Boss-Satz den Erholungspuls anbieten (wenn eingeschaltet)
     func offerPulse(after d: DoneInfo) -> PulseAfter? {
-        guard state.pulseAfter, d.strength, let id = d.exId else { return nil }
-        return PulseAfter(exId: id)
+        guard state.pulseAfter, d.boss, let id = d.exId else { return nil }
+        return PulseAfter(context: .recovery(id))
     }
 }
 
