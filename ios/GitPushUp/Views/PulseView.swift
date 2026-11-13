@@ -151,9 +151,25 @@ struct PulseView: View {
                 Text(status).font(mono(11, .bold)).foregroundStyle(L.note != nil ? Color.signal : Color.fg)
                 Spacer()
             }
-            ScanWave(wave: L.wave, beats: L.beats, active: measuring)
-                .frame(height: 110)
-                .background(PixelBlock().fill(Color(hex: 0x10171a)))
+            HStack(spacing: PX * 3) {
+                // Live-Bild der Kamera als grobe Pixel
+                ZStack {
+                    Color(hex: 0x10171a)
+                    if engine.thumb.count == PulseEngine.thumbW * PulseEngine.thumbH * 4,
+                       let img = makeImage(engine.thumb, PulseEngine.thumbW, PulseEngine.thumbH) {
+                        Image(decorative: img, scale: 1).resizable().interpolation(.none)
+                    }
+                    // Fadenkreuz
+                    Rectangle().fill(Color.white.opacity(0.25)).frame(width: PX / 2)
+                    Rectangle().fill(Color.white.opacity(0.25)).frame(height: PX / 2)
+                }
+                .frame(width: CGFloat(PulseEngine.thumbW) * PX * 2, height: CGFloat(PulseEngine.thumbH) * PX * 2)
+                .clipped()
+                .pixelBorder()
+                ScanWave(wave: L.wave, beats: L.beats, active: measuring)
+                    .frame(height: CGFloat(PulseEngine.thumbH) * PX * 2)
+                    .background(PixelBlock().fill(Color(hex: 0x10171a)))
+            }
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Text(big).font(display(64)).monospacedDigit().foregroundStyle(measuring ? Color.muted : Color.danger)
                 Text("BPM").font(mono(13)).foregroundStyle(Color.muted)

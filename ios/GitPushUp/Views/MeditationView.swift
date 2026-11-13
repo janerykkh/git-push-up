@@ -8,6 +8,8 @@ struct MeditationView: View {
     let onFinish: (_ seconds: Int, _ complete: Bool) -> Void
     let onSkip: () -> Void
     let onClose: () -> Void
+    /// Wird beim Drücken auf Start gefragt (z. B. Puls vorher messen); ruft danach `go` auf, dann startet der Gong
+    var beforeStart: ((_ go: @escaping () -> Void) -> Void)? = nil
 
     private let total: TimeInterval = 300
     @State private var start: Date? = nil
@@ -76,7 +78,9 @@ struct MeditationView: View {
             Spacer(minLength: 0)
 
             if start == nil {
-                Button("GONG · START") { begin() }
+                Button("GONG · START") {
+                    if let b = beforeStart { b { begin() } } else { begin() }
+                }
                     .buttonStyle(HangarButtonStyle(color: .mind, filled: true))
                 Button(action: onSkip) {
                     Text("passt gerade nicht").font(mono(12)).foregroundStyle(Color.muted).frame(maxWidth: .infinity, minHeight: 40)

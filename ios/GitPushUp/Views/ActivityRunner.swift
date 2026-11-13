@@ -25,30 +25,44 @@ struct ActivityRunner: View {
     let onSkip: () -> Void
     let onClose: () -> Void
 
-    /// Meditation: Puls vorher, Timer, Puls nachher (Pulsmessungen nur, wenn eingeschaltet)
-    enum MedStep { case before, sitting, after }
-    @State private var medStep: MedStep? = nil
+    /// Meditation: Timer; beim Start optional Puls vorher, nach dem Gong Puls nachher
+    @State private var pulseBefore = false
+    @State private var startAfterPulse: (() -> Void)? = nil
+    @State private var pulseAfter = false
     @State private var medResult: DoneInfo? = nil
 
     var body: some View {
         let ex = pick.ex
         if ex.kind == .mind {
-            switch medStep ?? (store.state.pulseAfter ? .before : .sitting) {
-            case .before:
-                PulseView(context: .medBefore, onClose: { medStep = .sitting })
-            case .sitting:
+            ZStack {
                 MeditationView(
                     onFinish: { secs, complete in
                         store.logResult(ex, target: 300, actual: secs, done: complete)
                         let d = DoneInfo(stamp: "NEURO-SYNC", text: "\(secs / 60) Minuten Meditation", partly: !complete, exId: ex.id)
-                        if store.state.pulseAfter && complete { medResult = d; medStep = .after } else { onDone(d) }
+                        if store.state.pulseAfter && complete { medResult = d; pulseAfter = true } else { onDone(d) }
                     },
                     onSkip: onSkip,
-                    onClose: onClose
+                    onClose: onClose,
+                    beforeStart: store.state.pulseAfter ? { go in startAfterPulse = go; pulseBefore = true } : nil
                 )
-            case .after:
-                PulseView(context: .medAfter, onClose: { onDone(medResult ?? DoneInfo(stamp: "NEURO-SYNC", text: "Meditation", partly: false)) })
+                if pulseBefore {
+                    PulseView(context: .medBefore, onClose: {
+                        pulseBefore = false
+                        let go = startAfterPulse
+                        startAfterPulse = nil
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { go?() }
+                    })
+                    .transition(.move(edge: .bottom))
+                    .zIndex(1)
+                }
+                if pulseAfter {
+                    PulseView(context: .medAfter, onClose: { onDone(medResult ?? DoneInfo(stamp: "NEURO-SYNC", text: "Meditation", partly: false)) })
+                        .transition(.move(edge: .bottom))
+                        .zIndex(1)
+                }
             }
+            .animation(.easeOut(duration: 0.25), value: pulseBefore)
+            .animation(.easeOut(duration: 0.25), value: pulseAfter)
         } else {
             ExerciseView(
                 ex: ex,

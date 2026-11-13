@@ -1,4 +1,5 @@
 import SwiftUI
+import CoreMotion
 
 /// Erster Start: eine fremde Lichtung, ein Lichtstrahl fällt auf ein Moosbett mit sechs Eiern.
 /// Jedes Ei trägt die Farben eines möglichen Wesens (Farbschema aus dessen Erbgut). Eins wählen, benennen, ausbrüten.
@@ -15,23 +16,16 @@ enum Clearing {
         (Double(w) * 0.5, Double(h) * 0.77, Double(w) * 0.44, Double(h) * 0.075)
     }
 
-    static func scene(_ w: Int, _ h: Int) -> PixelCanvas {
-        var c = PixelCanvas(w, h, opaque: true)
+    /// Tiefe der Ebenen für den Parallax-Effekt (0 = ganz hinten, >1 = vor den Eiern)
+    static let depths: [CGFloat] = [0.15, 0.3, 0.55, 0.8, 1.3]
+
+    /// Die Lichtung in fünf Ebenen: Hintergrund, Lichtstrahl, mittlere Pflanzen, Moosbett, vordere Wedel.
+    /// Alle Ebenen außer der hintersten sind durchsichtig. `eggs`: Lage der Eier (für Schatten im Moos).
+    static func layers(_ w: Int, _ h: Int, eggs: [(Double, Double)]) -> [PixelCanvas] {
         let W = Double(w), H = Double(h)
         var rnd = Mulberry32(90210)
 
-        // Himmel unter dem Blätterdach: oben trübes Petrol, unten fast schwarz
-        for y in 0..<h {
-            let t = Double(y) / H
-            for x in 0..<w {
-                let q = (bayer[y & 3][x & 3] / 16 - 0.5) * 0.08
-                let k = clampD(t + q, 0, 1)
-                c.set(Double(x), Double(y), (UInt8(26 - 20 * k), UInt8(60 - 46 * k), UInt8(66 - 50 * k)))
-            }
-        }
-
-        /// Wedel: gebogener Stiel mit Fiederblättchen links und rechts
-        func frond(_ bx: Double, _ by: Double, _ ang: Double, _ len: Double, _ col: RGB, _ curl: Double, leaf: Double = 1) {
+        func frond(_ c: inout PixelCanvas, _ bx: Double, _ by: Double, _ ang: Double, _ len: Double, _ col: RGB, _ curl: Double, leaf: Double = 1) {
             var x = bx, y = by, a = ang
             let steps = Int(len)
             for i in 0..<steps {
@@ -49,9 +43,7 @@ enum Clearing {
                 x = nx; y = ny
             }
         }
-
-        /// Fremde Leuchtpflanze: dünner Stiel, oben eine leuchtende Knospe
-        func bulb(_ bx: Double, _ by: Double, _ hgt: Double, _ lean: Double, _ glow: RGB) {
+        func bulb(_ c: inout PixelCanvas, _ bx: Double, _ by: Double, _ hgt: Double, _ lean: Double, _ glow: RGB) {
             let tx = bx + lean, ty = by - hgt
             c.line(bx, by, tx, ty, (34, 70, 62))
             c.rect(tx - 1, ty - 1, tx + 2, ty + 2, glow)
@@ -59,22 +51,31 @@ enum Clearing {
             c.set(tx, ty, (255, 255, 255), 0.7)
         }
 
-        // Hinterste Schicht: dunkle Wedel von oben und den Seiten, fast im Dunst
-        let far: [RGB] = [(28, 66, 66), (34, 74, 70), (40, 62, 76)]
+        // 0: Himmel unter dem Blätterdach, dunkle Wedel im Dunst
+        var far = PixelCanvas(w, h, opaque: true)
+        for y in 0..<h {
+            let t = Double(y) / H
+            for x in 0..<w {
+                let q = (bayer[y & 3][x & 3] / 16 - 0.5) * 0.08
+                let k = clampD(t + q, 0, 1)
+                far.set(Double(x), Double(y), (UInt8(26 - 20 * k), UInt8(60 - 46 * k), UInt8(66 - 50 * k)))
+            }
+        }
+        let farCols: [RGB] = [(28, 66, 66), (34, 74, 70), (40, 62, 76)]
         for _ in 0..<26 {
             let side = rnd.next() < 0.5
             let bx = side ? rnd.range(-10, W * 0.3) : rnd.range(W * 0.7, W + 10)
             let by = rnd.range(-10, H * 0.55)
             let ang = side ? rnd.range(-0.4, 0.9) : Double.pi - rnd.range(-0.4, 0.9)
-            frond(bx, by, ang, rnd.range(25, 55), far[Int(rnd.next() * 3)], rnd.range(-0.8, 0.8), leaf: 1.2)
+            frond(&far, bx, by, ang, rnd.range(25, 55), farCols[Int(rnd.next() * 3)], rnd.range(-0.8, 0.8), leaf: 1.2)
         }
-        // Blätterdach oben
         for _ in 0..<18 {
             let bx = rnd.range(-10, W + 10)
-            frond(bx, -6, rnd.range(0.6, 2.5), rnd.range(25, 50), (22, 54, 50), rnd.range(-1, 1), leaf: 1.4)
+            frond(&far, bx, -6, rnd.range(0.6, 2.5), rnd.range(25, 50), (22, 54, 50), rnd.range(-1, 1), leaf: 1.4)
         }
 
-        // Lichtstrahl: weicher Kegel, gerastert
+        // 1: Lichtstrahl
+        var beamL = PixelCanvas(w, h, opaque: false)
         let B = beam(w, h)
         for y in 0..<h {
             let t = clampD((Double(y) - B.top.1) / (B.bottom.1 - B.top.1), 0, 1.15)
@@ -85,29 +86,30 @@ enum Clearing {
                 let streak = 0.75 + 0.25 * sin(Double(x) * 0.9 + Double(y) * 0.12)
                 var a = (1 - d * d) * 0.42 * streak * (t > 1 ? max(0, 1 - (t - 1) * 8) : 1)
                 a += (bayer[y & 3][x & 3] / 16 - 0.5) * 0.12
-                if a > 0.02 { c.set(Double(x), Double(y), (200, 255, 228), min(0.6, (a * 10).rounded() / 10)) }
+                if a > 0.02 { beamL.set(Double(x), Double(y), (200, 255, 228), min(0.6, (a * 10).rounded() / 10)) }
             }
         }
 
-        // Mittlere Schicht: fremde Wedel in Türkis, Grün und Violett, angeleuchtet nahe dem Strahl
-        let mid: [RGB] = [(52, 128, 104), (70, 150, 120), (96, 84, 150), (44, 110, 120)]
+        // 2: mittlere Pflanzen und Leuchtknospen
+        var mid = PixelCanvas(w, h, opaque: false)
+        let midCols: [RGB] = [(52, 128, 104), (70, 150, 120), (96, 84, 150), (44, 110, 120)]
         for i in 0..<14 {
             let left = i % 2 == 0
             let bx = left ? rnd.range(-6, W * 0.32) : rnd.range(W * 0.68, W + 6)
             let by = rnd.range(H * 0.45, H * 0.82)
             let ang = left ? rnd.range(-1.4, -0.5) : -Double.pi + rnd.range(0.5, 1.4)
-            frond(bx, by, ang, rnd.range(28, 60), mid[Int(rnd.next() * 4)], left ? rnd.range(0.4, 1.2) : -rnd.range(0.4, 1.2))
+            frond(&mid, bx, by, ang, rnd.range(28, 60), midCols[Int(rnd.next() * 4)], left ? rnd.range(0.4, 1.2) : -rnd.range(0.4, 1.2))
         }
-        // Leuchtpflanzen
         let glows: [RGB] = [(120, 255, 220), (240, 140, 255), (255, 210, 120)]
         for i in 0..<9 {
             let bx = i % 2 == 0 ? rnd.range(W * 0.05, W * 0.3) : rnd.range(W * 0.7, W * 0.95)
-            bulb(bx, rnd.range(H * 0.7, H * 0.86), rnd.range(10, 26), rnd.range(-4, 4), glows[i % 3])
+            bulb(&mid, bx, rnd.range(H * 0.7, H * 0.86), rnd.range(10, 26), rnd.range(-4, 4), glows[i % 3])
         }
 
-        // Moosbett, in der Mitte vom Licht getroffen
+        // 3: Moosbett, in der Mitte vom Licht getroffen, mit Schatten unter den Eiern
+        var bed = PixelCanvas(w, h, opaque: false)
         let (mx, my, rx, ry) = moundCenter(w, h)
-        for y in Int(my - ry * 1.4)..<min(h, Int(my + ry * 3)) {
+        for y in max(0, Int(my - ry * 1.4))..<min(h, Int(my + ry * 3)) {
             for x in 0..<w {
                 let dx = (Double(x) - mx) / rx, dy = (Double(y) - my) / ry
                 let top = dy < 0 ? dx * dx + dy * dy : dx * dx + (dy / 2.2) * (dy / 2.2)
@@ -118,26 +120,35 @@ enum Clearing {
                 if lit > 0.15 + q * 0.3 { col = (40, 80, 64) }
                 if lit > 0.45 + q * 0.3 { col = (70, 124, 92) }
                 if lit > 0.75 + q * 0.2 { col = (120, 170, 120) }
+                // Kante oben heller (Licht von oben), Flanke unten dunkel: wirkt wie ein Hügel
+                if dy < 0 && top > 0.82 { col = (col.0 / 2 + 40, col.1 / 2 + 70, col.2 / 2 + 54) }
                 if dy > 0.6 { col = dy > 1.4 ? (10, 22, 20) : (14, 30, 26) }
-                c.set(Double(x), Double(y), col)
+                bed.set(Double(x), Double(y), col)
             }
         }
-        // Grashalme am Rand des Mooses
-        for _ in 0..<60 {
+        for e in eggs {
+            // weicher Schatten rechts unterhalb (Licht kommt von oben rechts)
+            let sx = e.0 - 2, sy = e.1 + 1
+            for yy in -2...2 { for xx in -8...8 where Double(xx * xx) / 64 + Double(yy * yy) / 5 <= 1 {
+                bed.set(sx + Double(xx), sy + Double(yy), (6, 16, 14), 0.55)
+            } }
+        }
+        for _ in 0..<70 {
             let a = rnd.range(-Double.pi, 0)
             let x = mx + cos(a) * rx * rnd.range(0.7, 1.02), y = my + sin(a) * ry * rnd.range(0.4, 1)
-            c.line(x, y, x + rnd.range(-2, 2), y - rnd.range(2, 6), (60, 120, 90))
+            bed.line(x, y, x + rnd.range(-2, 2), y - rnd.range(2, 6), (60, 120, 90))
         }
 
-        // Vorderste Schicht: dunkle, große Wedel unten in den Ecken
-        let front: [RGB] = [(18, 44, 38), (24, 52, 46), (30, 40, 58)]
+        // 4: vordere Wedel, groß und dunkel, ganz nah
+        var front = PixelCanvas(w, h, opaque: false)
+        let frontCols: [RGB] = [(14, 36, 32), (20, 44, 40), (26, 34, 50)]
         for i in 0..<16 {
             let left = i % 2 == 0
             let bx = left ? rnd.range(-12, W * 0.35) : rnd.range(W * 0.65, W + 12)
-            frond(bx, H + 4, left ? rnd.range(-1.3, -0.6) : -Double.pi + rnd.range(0.6, 1.3), rnd.range(40, 80),
-                  front[i % 3], left ? rnd.range(0.3, 0.9) : -rnd.range(0.3, 0.9), leaf: 1.5)
+            frond(&front, bx, H + 4, left ? rnd.range(-1.3, -0.6) : -Double.pi + rnd.range(0.6, 1.3), rnd.range(40, 80),
+                  frontCols[i % 3], left ? rnd.range(0.3, 0.9) : -rnd.range(0.3, 0.9), leaf: 1.6)
         }
-        return c
+        return [far, beamL, mid, bed, front]
     }
 
     /// Ein Ei in den Farben eines Wesens: Grundfarbe mit Licht und Schatten, Flecken in der Zweitfarbe, dunkler Umriss
@@ -187,50 +198,104 @@ enum Clearing {
     }
 }
 
+/// Neigung des iPhones, geglättet, für den Parallax-Effekt
+final class Tilt: ObservableObject {
+    @Published var x: CGFloat = 0
+    @Published var y: CGFloat = 0
+    private let mm = CMMotionManager()
+    func start() {
+        guard mm.isDeviceMotionAvailable else { return }
+        mm.deviceMotionUpdateInterval = 1.0 / 30
+        mm.startDeviceMotionUpdates(to: .main) { [weak self] m, _ in
+            guard let self, let g = m?.gravity else { return }
+            // Ruhelage: iPhone leicht schräg in der Hand
+            let tx = CGFloat(max(-1, min(1, g.x * 2.2)))
+            let ty = CGFloat(max(-1, min(1, (g.y + 0.6) * 2.2)))
+            self.x += (tx - self.x) * 0.12
+            self.y += (ty - self.y) * 0.12
+        }
+    }
+    func stop() { mm.stopDeviceMotionUpdates() }
+}
+
 struct EggSelectView: View {
     @EnvironmentObject var store: Store
+    @StateObject private var tilt = Tilt()
     @State private var seeds: [Int] = Clearing.clutch()
     @State private var chosen: Int? = nil
     @State private var name = ""
-    @State private var bg: (CGImage?, Int, Int)? = nil
+    @State private var layers: [CGImage] = []
+    @State private var dims: (Int, Int) = (0, 0)
     @State private var eggs: [Int: CGImage] = [:]
     @FocusState private var nameFocus: Bool
 
+    /// Rand in Pixeln, damit sich die Ebenen verschieben können, ohne dass Lücken entstehen
+    private let margin = 14
     /// Lage der Eier auf dem Moosbett (Anteil vom Radius)
     private let spots: [(Double, Double)] = [(-0.62, -0.1), (-0.36, 0.25), (-0.1, -0.25), (0.14, 0.2), (0.4, -0.15), (0.64, 0.22)]
 
+    private func eggPos(_ i: Int, _ w: Int, _ h: Int) -> (Double, Double) {
+        let (mx, my, rx, ry) = Clearing.moundCenter(w, h)
+        let p = spots[i]
+        return (mx + p.0 * rx * 0.95, my + p.1 * ry * 1.6)    // Fußpunkt des Eis
+    }
+
     var body: some View {
-        GeometryReader { geo in
-            let W = geo.size.width + geo.safeAreaInsets.leading + geo.safeAreaInsets.trailing
-            let H = geo.size.height + geo.safeAreaInsets.top + geo.safeAreaInsets.bottom
-            let w = Int(ceil(W / PX)), h = Int(ceil(H / PX))
-            ZStack(alignment: .topLeading) {
-                Color(hex: 0x061210)
-                if let b = bg, let img = b.0 {
-                    Image(decorative: img, scale: 1).resizable().interpolation(.none)
-                        .frame(width: CGFloat(b.1) * PX, height: CGFloat(b.2) * PX)
+        ZStack {
+            GeometryReader { geo in
+                let w = Int(ceil(geo.size.width / PX)) + 2 * margin, h = Int(ceil(geo.size.height / PX)) + 2 * margin
+                ZStack(alignment: .topLeading) {
+                    Color(hex: 0x061210)
+                    TimelineView(.animation(minimumInterval: 1 / 30)) { tl in
+                        let t = tl.date.timeIntervalSinceReferenceDate
+                        // leichtes Atmen, auch ohne Neigung
+                        let ix = tilt.x + CGFloat(sin(t * 0.35)) * 0.15, iy = tilt.y + CGFloat(cos(t * 0.27)) * 0.1
+                        ZStack(alignment: .topLeading) {
+                            ForEach(Array(layers.enumerated()), id: \.offset) { i, img in
+                                layerView(img, depth: Clearing.depths[i], ix: ix, iy: iy)
+                                if i == 2 { dust(w: w, h: h).offset(shift(Clearing.depths[2], ix, iy)) }
+                                if i == 3 { eggLayer(w: w, h: h, t: t).offset(shift(Clearing.depths[3], ix, iy)) }
+                            }
+                        }
+                    }
                 }
-                dust(w: w, h: h)
-                eggLayer(w: w, h: h)
-                overlayUI(topInset: geo.safeAreaInsets.top, bottomInset: geo.safeAreaInsets.bottom, W: W, H: H)
+                .onAppear { build(w, h) }
             }
-            .frame(width: W, height: H, alignment: .topLeading)
-            .onAppear { build(w, h) }
+            .ignoresSafeArea()
+
+            overlayUI
         }
-        .ignoresSafeArea()
+        .onAppear { tilt.start() }
+        .onDisappear { tilt.stop() }
+    }
+
+    /// Verschiebung einer Ebene: tiefer liegende bewegen sich weniger, alles auf ganze Pixel gerundet
+    private func shift(_ depth: CGFloat, _ ix: CGFloat, _ iy: CGFloat) -> CGSize {
+        let m = CGFloat(margin) * PX
+        return CGSize(width: snap(-m + ix * depth * m * 0.9), height: snap(-m + iy * depth * m * 0.6))
+    }
+
+    private func layerView(_ img: CGImage, depth: CGFloat, ix: CGFloat, iy: CGFloat) -> some View {
+        Image(decorative: img, scale: 1).resizable().interpolation(.none)
+            .frame(width: CGFloat(dims.0) * PX, height: CGFloat(dims.1) * PX)
+            .offset(shift(depth, ix, iy))
+            .allowsHitTesting(false)
     }
 
     private func build(_ w: Int, _ h: Int) {
-        guard bg == nil else { return }
+        guard layers.isEmpty else { return }
         let s = seeds
+        let pos = (0..<6).map { eggPos($0, w, h) }
         Task {
-            let out = await Task.detached(priority: .userInitiated) { () -> (CGImage?, [Int: CGImage]) in
+            let out = await Task.detached(priority: .userInitiated) { () -> ([CGImage], [Int: CGImage]) in
                 var e: [Int: CGImage] = [:]
                 for sd in s { if let i = Clearing.egg(seed: sd).image { e[sd] = i } }
-                return (Clearing.scene(w, h).image, e)
+                let ls = Clearing.layers(w, h, eggs: pos).compactMap { $0.image }
+                return (ls, e)
             }.value
             eggs = out.1
-            withAnimation(.easeOut(duration: 0.6)) { bg = (out.0, w, h) }
+            dims = (w, h)
+            withAnimation(.easeOut(duration: 0.6)) { layers = out.0 }
         }
     }
 
@@ -253,48 +318,48 @@ struct EggSelectView: View {
                 }
             }
         }
+        .frame(width: CGFloat(w) * PX, height: CGFloat(h) * PX)
         .allowsHitTesting(false)
     }
 
-    private func eggLayer(w: Int, h: Int) -> some View {
-        let (mx, my, rx, ry) = Clearing.moundCenter(w, h)
-        return TimelineView(.animation(minimumInterval: 1 / 10)) { tl in
-            let t = tl.date.timeIntervalSinceReferenceDate
-            ZStack(alignment: .topLeading) {
-                ForEach(Array(seeds.enumerated()), id: \.offset) { i, s in
-                    if let img = eggs[s] {
-                        let p = spots[i]
-                        let ex = mx + p.0 * rx * 0.95 - 8, ey = my + p.1 * ry * 1.6 - 18
-                        let sel = chosen == s
-                        // gewähltes Ei wackelt pixelweise
-                        let wob: CGFloat = sel ? (Int(t * 6) % 4 == 0 ? PX : (Int(t * 6) % 4 == 2 ? -PX : 0)) : 0
-                        ZStack(alignment: .top) {
-                            Image(decorative: img, scale: 1).resizable().interpolation(.none)
-                                .frame(width: 16 * PX, height: 20 * PX)
-                            if sel {
-                                PixelIcon(rows: ["#####", ".###.", "..#.."], color: .signal).offset(y: -PX * 6)
-                            }
+    private func eggLayer(w: Int, h: Int, t: Double) -> some View {
+        ZStack(alignment: .topLeading) {
+            ForEach(Array(seeds.enumerated()), id: \.offset) { i, s in
+                if let img = eggs[s] {
+                    let p = eggPos(i, w, h)
+                    let sel = chosen == s
+                    // gewähltes Ei wackelt pixelweise
+                    let wob: CGFloat = sel ? (Int(t * 6) % 4 == 0 ? PX : (Int(t * 6) % 4 == 2 ? -PX : 0)) : 0
+                    ZStack(alignment: .top) {
+                        Image(decorative: img, scale: 1).resizable().interpolation(.none)
+                            .frame(width: 16 * PX, height: 20 * PX)
+                        if sel {
+                            PixelIcon(rows: ["#####", ".###.", "..#.."], color: .signal).offset(y: -PX * 6)
                         }
-                        .offset(x: snap(CGFloat(ex) * PX) + wob, y: snap(CGFloat(ey) * PX))
-                        .onTapGesture {
-                            UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                            chosen = s
-                            name = CreatureModel.syllableName(s)
-                        }
+                    }
+                    .frame(width: 16 * PX, height: 20 * PX)
+                    .contentShape(Rectangle())
+                    .offset(x: snap(CGFloat(p.0 - 8) * PX) + wob, y: snap(CGFloat(p.1 - 18) * PX))
+                    .onTapGesture {
+                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                        chosen = s
+                        name = CreatureModel.syllableName(s)
                     }
                 }
             }
         }
+        .frame(width: CGFloat(w) * PX, height: CGFloat(h) * PX, alignment: .topLeading)
     }
 
-    @ViewBuilder
-    private func overlayUI(topInset: CGFloat, bottomInset: CGFloat, W: CGFloat, H: CGFloat) -> some View {
+    /// Bedienung: oben der Titel, unten das Namensfeld. Liegt außerhalb der Szene und rückt mit der Tastatur hoch.
+    private var overlayUI: some View {
         VStack(alignment: .leading, spacing: 0) {
             VStack(alignment: .leading, spacing: 4) {
                 Text("BRUTSTÄTTE").font(display(30)).tracking(1).foregroundStyle(Color(hex: 0xe9f5ee))
                 Text("SEKTOR 7 // SECHS EIER // UNBEKANNTE ART").font(mono(10)).foregroundStyle(Color(hex: 0x9cc6b4))
             }
-            .padding(.top, topInset + 14).padding(.horizontal, 16)
+            .padding(.top, 14).padding(.horizontal, 16)
+            .allowsHitTesting(false)
             Spacer()
             if let s = chosen {
                 let pal = Palette(Genome(seed: s))
@@ -312,10 +377,12 @@ struct EggSelectView: View {
                         .textInputAutocapitalization(.characters).autocorrectionDisabled()
                         .focused($nameFocus)
                         .submitLabel(.done)
+                        .onSubmit { nameFocus = false }
                         .padding(.horizontal, 10).frame(height: 46)
                         .background(PixelBlock().fill(Color.panel))
                         .pixelBorder()
                     Button {
+                        nameFocus = false
                         store.hatch(seed: s, name: name)
                     } label: {
                         Text("AUSBRÜTEN").font(display(22)).tracking(1).foregroundStyle(.white)
@@ -327,15 +394,15 @@ struct EggSelectView: View {
                 .padding(12)
                 .background(PixelBlock().fill(Color.bg))
                 .pixelBorder()
-                .padding(.horizontal, 12).padding(.bottom, bottomInset + 12)
+                .padding(.horizontal, 12).padding(.bottom, 12)
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             } else {
                 Text("Tippe auf ein Ei.").font(mono(13)).foregroundStyle(Color(hex: 0xcfe6dc))
                     .frame(maxWidth: .infinity)
-                    .padding(.bottom, bottomInset + 28)
+                    .padding(.bottom, 28)
+                    .allowsHitTesting(false)
             }
         }
-        .frame(width: W, height: H, alignment: .topLeading)
         .animation(.easeOut(duration: 0.25), value: chosen)
     }
 }

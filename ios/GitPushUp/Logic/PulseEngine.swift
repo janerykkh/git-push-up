@@ -28,6 +28,9 @@ final class PulseEngine: NSObject, ObservableObject, AVCaptureVideoDataOutputSam
     }
 
     @Published var live = Live()
+    /// Kleines Live-Bild der Kamera (24 × 32 Pixel, RGBA), stilisiert. Mit Finger: das Pulsieren verstärkt sichtbar.
+    @Published var thumb: [UInt8] = []
+    static let thumbW = 24, thumbH = 32
     @Published var permissionDenied = false
     /// Auf dem Hauptthread: Puls, Güte
     var onResult: ((Int, Double) -> Void)?
@@ -54,6 +57,9 @@ final class PulseEngine: NSObject, ObservableObject, AVCaptureVideoDataOutputSam
     private var note: String? = nil
 
     private let fs = 30.0
+    private var frameNo = 0
+    private var thumbMean: [Double] = []     // langsamer Mittelwert je Pixel, um das Pulsieren herauszuholen
+    private var thumbAmp = 1.0
 
     // MARK: Start / Stopp
 
@@ -157,7 +163,50 @@ final class PulseEngine: NSObject, ObservableObject, AVCaptureVideoDataOutputSam
             y += 3
         }
         guard n > 0 else { return }
-        process(t: t, r: sr / n, g: sg / n, b: sb / n)
+        let r = sr / n, g = sg / n, b = sb / n
+        frameNo += 1
+        if frameNo % 3 == 0 { makeThumb(p, w: w, h: h, row: row, finger: r > 60 && r > g * 1.6 && r > b * 1.6) }
+        process(t: t, r: r, g: g, b: b)
+    }
+
+    /// Stilisiertes Live-Bild: hochkant gedreht, stark verkleinert. Ohne Finger graugrün wie ein Sucher,
+    /// mit Finger Abweichung vom gleitenden Mittel verstärkt: Herzschläge laufen als dunkle Welle durchs Bild.
+    private func makeThumb(_ p: UnsafeMutablePointer<UInt8>, w: Int, h: Int, row: Int, finger: Bool) {
+        let TW = Self.thumbW, TH = Self.thumbH
+        var vals = [Double](repeating: 0, count: TW * TH)
+        for ty in 0..<TH {
+            for tx in 0..<TW {
+                // Kamerabild liegt quer: Zeile im Hochformat = x im Puffer, Spalte = y rückwärts
+                let bx = min(w - 1, (ty * w) / TH + w / (2 * TH))
+                let by = min(h - 1, ((TW - 1 - tx) * h) / TW + h / (2 * TW))
+                let o = by * row + bx * 4
+                vals[ty * TW + tx] = finger ? Double(p[o + 2]) : (Double(p[o]) + Double(p[o + 1]) + Double(p[o + 2])) / 3
+            }
+        }
+        if thumbMean.count != vals.count { thumbMean = vals }
+        var out = [UInt8](repeating: 255, count: TW * TH * 4)
+        var maxDev = 0.0
+        for i in 0..<vals.count {
+            thumbMean[i] += (vals[i] - thumbMean[i]) * 0.15
+            maxDev = max(maxDev, abs(vals[i] - thumbMean[i]))
+        }
+        thumbAmp += (max(0.5, maxDev) - thumbAmp) * 0.1
+        for i in 0..<vals.count {
+            let k = i * 4
+            if finger {
+                // dunkler als der Mittelwert = mehr Blut = Herzschlag
+                let d = max(-1, min(1, (thumbMean[i] - vals[i]) / thumbAmp))
+                let base = vals[i] / 255
+                let lvl = max(0, min(1, 0.35 + 0.25 * base + 0.4 * d))
+                let q = (lvl * 5).rounded() / 5      // wenige Stufen: Pixel-Optik
+                out[k] = UInt8(60 + 195 * q); out[k + 1] = UInt8(18 + 70 * q * q); out[k + 2] = UInt8(24 + 40 * q * q)
+            } else {
+                let q = ((vals[i] / 255) * 4).rounded() / 4
+                out[k] = UInt8(16 + 60 * q); out[k + 1] = UInt8(30 + 120 * q); out[k + 2] = UInt8(34 + 110 * q)
+            }
+        }
+        if !finger { thumbMean = vals }
+        DispatchQueue.main.async { self.thumb = out }
     }
 
     private func restartSettling(note: String?, now: Double) {
