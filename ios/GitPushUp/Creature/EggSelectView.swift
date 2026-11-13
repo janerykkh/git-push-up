@@ -415,5 +415,6 @@ extension Store {
         state.creature = CreatureState(seed: seed, born: now, name: String((n.isEmpty ? CreatureModel.syllableName(seed) : n).prefix(18)),
                                        updated: now, hatched: true)
         save()
+        rescheduleReminders()
     }
 }

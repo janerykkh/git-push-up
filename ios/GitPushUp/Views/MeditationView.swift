@@ -53,7 +53,7 @@ struct MeditationView: View {
                     ctx.pixelStroke(all, .line, size: PX)
                     ctx.pixelStroke(left, .mind, size: PX * 2)
                 }
-                EEGWave(calm: start == nil ? 0.3 : 0.4 + 0.6 * progress, color: .mind)
+                ResonanceWave(calm: start == nil ? 0.3 : 0.4 + 0.6 * progress, color: .mind)
                     .frame(height: 40)
                     .padding(.horizontal, 56)
                     .offset(y: -10)

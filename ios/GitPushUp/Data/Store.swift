@@ -65,6 +65,7 @@ final class Store: ObservableObject {
         state.lastEx = ex.id
         skipped = [:]
         save()
+        rescheduleReminders()
         Task { await autoBackup() }
     }
 

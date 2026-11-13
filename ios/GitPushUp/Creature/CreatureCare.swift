@@ -16,6 +16,7 @@ struct CreatureVitals {
     var ageDays: Int
     var todayCount: Int       // heute absolvierte Übungen
     var streakBonus: Double
+    var resting = false       // Ruhemodus an
 
     /// Für das Aussehen: Anteile mal drei (ausgewogen = 1) und gedeckelt durch das Wachstum
     var traits: Traits {
@@ -36,6 +37,7 @@ struct CreatureVitals {
         }
     }
     var healthLabel: String {
+        if resting { return "RUHT" }
         switch health {
         case 0.7...: return "MUNTER"
         case 0.4...: return "WACH"
@@ -52,7 +54,7 @@ enum CreatureModel {
     static let shareMemoryMs = 30 * dayMs
     static let healthMs = 36 * hourMs
     static let upkeepPerDay = 0.4            // Grundumsatz
-    static let graceMs = 48 * hourMs         // so lange Pause ohne Abbau
+    static let graceMs = 6 * dayMs           // so lange Pause ohne Abbau (davor nur müde und grau)
     static let decayPerDay = 0.006 * growthGoal
     static let weeklyBonus = 3.0
     // Mischung, die GO anstrebt: daran gemessen ergibt "immer GO" etwa 33/33/33
@@ -128,16 +130,27 @@ extension Store {
         // Wochenziele: Kraftsätze, Dehnen, Meditationsminuten, aktive Tage
         var week: [String: (s: Int, t: Int, m: Int, days: Set<Date>, done: Set<Int>)] = [:]
 
+        // Pausen zählen nur außerhalb des Ruhemodus
+        let rests = state.rests
+        func restMs(_ a: Millis, _ b: Millis) -> Millis {
+            var sum = 0.0
+            for r in rests {
+                let e = r.end ?? now
+                sum += max(0, min(b, e) - max(a, r.start))
+            }
+            return sum
+        }
         func idle(_ from: Millis, _ to: Millis) {
             guard to > from else { return }
-            G -= M.upkeepPerDay * (to - from) / dayMs
-            let start = from + M.graceMs
-            if to > start {
+            let active = (to - from) - restMs(from, to)
+            guard active > 0 else { return }
+            G -= M.upkeepPerDay * active / dayMs
+            if active > M.graceMs {
                 // Abbau wird mit der Dauer der Pause stärker (bis 2,5-fach)
-                var t = start
-                while t < to {
-                    let step = min(6 * hourMs, to - t)
-                    let f = min(2.5, 1 + (t - start) / (3 * dayMs))
+                var t = M.graceMs
+                while t < active {
+                    let step = min(6 * hourMs, active - t)
+                    let f = min(2.5, 1 + (t - M.graceMs) / (3 * dayMs))
                     G -= M.decayPerDay * f * step / dayMs
                     t += step
                 }
@@ -231,8 +244,29 @@ extension Store {
             shares: (shares.0, shares.1, shares.2),
             health: min(1, hp / 4.5),
             ageDays: max(0, Int((now - c.born) / dayMs)),
-            todayCount: today, streakBonus: bonus
+            todayCount: today, streakBonus: bonus, resting: state.resting
         )
+    }
+
+    // MARK: Ruhemodus, Freilassen
+
+    var resting: Bool { state.resting }
+
+    func setResting(_ on: Bool) {
+        if on, !state.resting { state.rests.append(RestPeriod(start: nowMs(), end: nil)) }
+        if !on, state.resting { state.rests[state.rests.count - 1].end = nowMs() }
+        save()
+        rescheduleReminders()
+    }
+
+    /// Ausgewachsenes Wesen freilassen: ins Archiv, danach zurück in die Brutstätte
+    func releaseCreature() {
+        guard let c = state.creature else { return }
+        let v = vitals()
+        state.archive.append(ReleasedCreature(id: LogEntry.newId(), seed: c.seed, name: c.name, born: c.born, released: nowMs(),
+                                              days: v.ageDays, shareS: v.shares.s, shareT: v.shares.t, shareM: v.shares.m))
+        state.creature = nil
+        save()
     }
 
     /// Pflegepunkte pro Tag (gedeckelt auf 5), die letzten `n` Tage, ältester zuerst. nil = vor dem Schlüpfen.

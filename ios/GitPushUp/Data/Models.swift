@@ -90,6 +90,25 @@ struct CreatureState: Codable, Equatable {
     var hatched: Bool? = nil
 }
 
+/// Ruhemodus (krank, Urlaub): in dieser Zeit wächst das Wesen nicht und baut nicht ab
+struct RestPeriod: Codable, Equatable {
+    var start: Millis
+    var end: Millis?
+}
+
+/// Ein freigelassenes Wesen im Archiv
+struct ReleasedCreature: Codable, Identifiable, Equatable {
+    var id: String
+    var seed: Int
+    var name: String
+    var born: Millis
+    var released: Millis
+    var days: Int
+    var shareS: Double
+    var shareT: Double
+    var shareM: Double
+}
+
 /// Alles, was lokal gespeichert wird (eine JSON-Datei im App-Ordner, nirgends sonst)
 struct PersistedState: Codable {
     var log: [LogEntry] = []
@@ -107,7 +126,17 @@ struct PersistedState: Codable {
     var protein: [ProteinEntry] = []
     var creature: CreatureState?
     /// Nach Kraftübungen anbieten, den Puls zu messen
-    var pulseAfter: Bool = true
+    var pulseAfter: Bool = false
+    var rests: [RestPeriod] = []
+    var archive: [ReleasedCreature] = []
+    /// Tägliche Erinnerung (nur wenn an dem Tag noch nichts gemacht wurde)
+    var reminderOn: Bool = false
+    var reminderHour: Int = 18
+    var reminderMinute: Int = 0
+}
+
+extension PersistedState {
+    var resting: Bool { rests.last.map { $0.end == nil } ?? false }
 }
 
 /// Format der backup.json im privaten Repo (gleich wie bei der Web-App)
@@ -119,6 +148,8 @@ struct BackupFile: Codable {
     var trainer: TrainerState?
     var protein: [ProteinEntry]?
     var creature: CreatureState?
+    var archive: [ReleasedCreature]?
+    var rests: [RestPeriod]?
 }
 
 // Fehlende Felder (ältere Backups, neue Versionen) einfach mit Standardwerten füllen statt abzubrechen
@@ -149,6 +180,11 @@ extension PersistedState {
         muscleScale = try c.decodeIfPresent([String: Double].self, forKey: .muscleScale) ?? [:]
         protein = try c.decodeIfPresent([ProteinEntry].self, forKey: .protein) ?? []
         creature = try c.decodeIfPresent(CreatureState.self, forKey: .creature)
-        pulseAfter = try c.decodeIfPresent(Bool.self, forKey: .pulseAfter) ?? true
+        pulseAfter = try c.decodeIfPresent(Bool.self, forKey: .pulseAfter) ?? false
+        rests = try c.decodeIfPresent([RestPeriod].self, forKey: .rests) ?? []
+        archive = try c.decodeIfPresent([ReleasedCreature].self, forKey: .archive) ?? []
+        reminderOn = try c.decodeIfPresent(Bool.self, forKey: .reminderOn) ?? false
+        reminderHour = try c.decodeIfPresent(Int.self, forKey: .reminderHour) ?? 18
+        reminderMinute = try c.decodeIfPresent(Int.self, forKey: .reminderMinute) ?? 0
     }
 }

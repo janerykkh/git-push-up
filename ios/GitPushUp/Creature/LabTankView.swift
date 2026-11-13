@@ -79,7 +79,7 @@ struct LabTankView: View {
 
     private var params: CreatureRenderer.Params {
         CreatureRenderer.Params(seed: seed, g: previewG ?? vitals.g, traits: vitals.traits,
-                                vigor: previewG == nil ? vitals.vigor : 1, sleepy: previewG == nil && vitals.health < 0.15)
+                                vigor: previewG == nil ? vitals.vigor : 1, sleepy: previewG == nil && (vitals.health < 0.15 || vitals.resting))
     }
 
     var body: some View {
@@ -138,7 +138,7 @@ struct LabTankView: View {
     @ViewBuilder
     private func creature(t: Double, W: CGFloat, H: CGFloat, floorPt: CGFloat, ceilPt: CGFloat) -> some View {
         if let img = renderer.image {
-            let sleepy = previewG == nil && vitals.health < 0.15
+            let sleepy = previewG == nil && (vitals.health < 0.15 || vitals.resting)
             let avail = floorPt - ceilPt - pixel * 2
             let size = CGFloat(renderer.n) * pixel
             let contentH = size * CGFloat(max(0.05, renderer.bottomFrac - renderer.topFrac))

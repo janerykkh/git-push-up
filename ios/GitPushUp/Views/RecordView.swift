@@ -126,8 +126,6 @@ struct RecordView: View {
                     timerStart = nil
                     inputFocused = false
                     store.saveTest(m, value: v)
-                    // Erholungspuls: vor dem nächsten Test ist eh eine Pause
-                    if store.state.pulseAfter { pulse = PulseAfter(context: .recovery(m.id)) }
                     if let next = Marker.all.first(where: { store.state.trainer.pending[$0.id] == nil }) { open(next.id) }
                     else { selected = nil }
                 }

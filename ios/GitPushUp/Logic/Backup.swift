@@ -69,6 +69,11 @@ extension Store {
         var pmap: [String: ProteinEntry] = [:]
         for e in state.protein + (remote.protein ?? []) where !del.contains(e.id) { pmap[e.id] = e }
         state.protein = pmap.values.sorted { $0.ts < $1.ts }
+        // Archiv und Ruhezeiten zusammenführen
+        var amap: [String: ReleasedCreature] = [:]
+        for a in state.archive + (remote.archive ?? []) { amap[a.id] = a }
+        state.archive = amap.values.sorted { $0.released < $1.released }
+        if let rr = remote.rests, rr.count > state.rests.count { state.rests = rr }
         // Wesen: eine bewusste Änderung (neues Ei, Name) gewinnt; sonst das ältere Ei,
         // damit nach einer Neuinstallation dasselbe Wesen zurückkommt
         if let rc = remote.creature {
@@ -93,7 +98,7 @@ extension Store {
         let remote = try await fetchRemote()
         if let f = remote.file { merge(f) }
         let iso = ISO8601DateFormatter().string(from: Date())
-        let payload = BackupFile(version: 3, exported: iso, entries: state.log, deleted: state.deleted, trainer: state.trainer, protein: state.protein, creature: state.creature)
+        let payload = BackupFile(version: 3, exported: iso, entries: state.log, deleted: state.deleted, trainer: state.trainer, protein: state.protein, creature: state.creature, archive: state.archive, rests: state.rests)
         let json = try JSONEncoder().encode(payload)
         var body: [String: String] = [
             "message": "Backup \(Date().formatted(date: .numeric, time: .omitted)): \(state.log.count) Einträge",

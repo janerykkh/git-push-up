@@ -48,13 +48,26 @@ struct SettingsView: View {
                     }
                 }
 
-                Block(title: "PULS") {
-                    Toggle("MESSUNGEN ANBIETEN", isOn: Binding(
-                        get: { store.state.pulseAfter },
-                        set: { store.state.pulseAfter = $0; store.save() }
-                    ))
-                    .font(mono(13)).tint(.signal)
-                    Text("Morgens fragt die App nach dem Ruhepuls. Vor und nach der Meditation wird gemessen, nach Boss-Sätzen und Rekordtests der Erholungspuls (direkt danach und nach einer Minute). Überspringen geht immer.")
+                Block(title: "RUHEMODUS") {
+                    Toggle("WESEN SCHLÄFT", isOn: Binding(get: { store.state.resting }, set: { store.setResting($0) }))
+                        .font(mono(13)).tint(.signal)
+                    Text("Für Krankheit oder Urlaub: solange der Ruhemodus an ist, wächst es nicht, baut nicht ab und es kommen keine Erinnerungen.")
+                        .font(mono(11)).foregroundStyle(Color.muted).fixedSize(horizontal: false, vertical: true)
+                }
+
+                Block(title: "ERINNERUNG") {
+                    Toggle("TÄGLICH ERINNERN", isOn: Binding(get: { store.state.reminderOn }, set: { store.enableReminders($0) }))
+                        .font(mono(13)).tint(.signal)
+                    if store.state.reminderOn {
+                        DatePicker("UHRZEIT", selection: Binding(
+                            get: { Calendar.current.date(bySettingHour: store.state.reminderHour, minute: store.state.reminderMinute, second: 0, of: Date()) ?? Date() },
+                            set: { d in
+                                let c = Calendar.current.dateComponents([.hour, .minute], from: d)
+                                store.setReminderTime(hour: c.hour ?? 18, minute: c.minute ?? 0)
+                            }), displayedComponents: .hourAndMinute)
+                        .font(mono(13))
+                    }
+                    Text("Eine Nachricht am Tag, nur wenn du an dem Tag noch nichts gemacht hast.")
                         .font(mono(11)).foregroundStyle(Color.muted).fixedSize(horizontal: false, vertical: true)
                 }
 

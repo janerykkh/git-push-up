@@ -10,6 +10,7 @@ struct HomeView: View {
     let onSettings: () -> Void
     let onPulse: (PulseContext) -> Void
     let onReport: (ReportJump) -> Void
+    let onRelease: () -> Void
 
     @State private var previewG: Double? = nil
     @State private var previewTask: Task<Void, Never>? = nil
@@ -27,10 +28,8 @@ struct HomeView: View {
                     VStack(alignment: .leading, spacing: 8) {
                         header(creature, v)
                         statCells(v)
-                        careStrip
                         traitGauges(v)
-                        eegBox
-                        if store.restPulseDue { restPrompt }
+                        if v.g >= 0.9999 { releaseButton } else if store.state.resting { restNote }
                         Spacer(minLength: 0)
                         bottomBar
                     }
@@ -185,23 +184,6 @@ struct HomeView: View {
         .pixelBorder()
     }
 
-    /// Die letzten 14 Tage: leer = nichts, grau = etwas, schwarz = gut gepflegt; heute orange umrandet
-    private var careStrip: some View {
-        let pts = store.carePoints(days: 14)
-        return HStack(spacing: 6) {
-            Text("PFLEGE 14T").font(labelFont(9)).tracking(0.8).frame(width: 66, alignment: .leading)
-            HStack(spacing: PX * 2) {
-                ForEach(Array(pts.enumerated()), id: \.offset) { i, p in
-                    let isToday = i == pts.count - 1
-                    let fill: Color = p == nil ? .clear : ((p ?? 0) >= 3 ? Color.fg : ((p ?? 0) > 0 ? Color.dim : .clear))
-                    PixelBlock().fill(fill)
-                        .frame(maxWidth: .infinity).frame(height: PX * 5)
-                        .overlay(PixelFrame().fill(isToday ? Color.signal : (p == nil ? Color.line : Color.line2)))
-                }
-            }
-        }
-    }
-
     /// Anteile der drei Pflegearten. Wer immer GO folgt, landet bei etwa 33/33/33; was du überspringst oder selbst
     /// dazunimmst, verschiebt die Anteile, und das Wesen entwickelt sich in diese Richtung.
     private func traitGauges(_ v: CreatureVitals) -> some View {
@@ -223,41 +205,35 @@ struct HomeView: View {
         }
     }
 
-    private var eegBox: some View {
-        let calm = store.eegCalm
-        let h = store.hoursSinceKind(.mind)
-        let state: String = calm >= 0.7 ? "α · RUHIG" : (calm >= 0.4 ? "α/β · WACH" : (calm >= 0.15 ? "β · UNRUHIG" : "γ · RAUSCHEN"))
-        let since: String = h >= 999 ? "NOCH KEINE MEDITATION"
-            : (h < 48 ? "MEDITATION VOR \(String(format: "%02d", Int(h))) H" : "MEDITATION VOR \(Int(h / 24)) T")
-        return VStack(alignment: .leading, spacing: 2) {
-            HStack(spacing: 4) {
-                Text("EEG").font(labelFont(9)).tracking(0.8)
-                Text("// \(state)").font(mono(9, .bold))
-                Spacer()
-                Text(since).font(mono(9)).foregroundStyle(Color.muted)
-            }
-            EEGWave(calm: calm).frame(height: 18)
-        }
-        .padding(.horizontal, 7).padding(.vertical, 5)
-        .pixelBorder()
-    }
-
-    /// Morgens, solange noch kein Ruhepuls gemessen ist
-    private var restPrompt: some View {
-        Button { onPulse(.rest) } label: {
+    /// Ausgewachsen: freilassen, ins Archiv, neues Ei
+    private var releaseButton: some View {
+        Button(action: onRelease) {
             HStack(spacing: 8) {
-                Rectangle().fill(Color.danger).frame(width: PX * 3, height: PX * 3)
-                Text("RUHEPULS MESSEN").font(labelFont(10)).tracking(0.8)
-                Text("// MORGENWERT FEHLT").font(mono(9)).foregroundStyle(Color.muted)
+                Rectangle().fill(Color.grow(1)).frame(width: PX * 3, height: PX * 3)
+                Text("AUSGEWACHSEN").font(labelFont(11)).tracking(0.8)
+                Text("// BEREIT FÜR DIE FREIHEIT").font(mono(9)).foregroundStyle(Color.muted)
                 Spacer()
-                PixelIcon(rows: PixelIcon.arrow, color: .fg)
+                Text("FREILASSEN").font(labelFont(11)).tracking(0.8).foregroundStyle(Color.grow(1))
+                PixelIcon(rows: PixelIcon.arrow, color: .grow(1))
             }
             .foregroundStyle(Color.fg)
-            .padding(.horizontal, 8).frame(height: 30)
-            .pixelBorder(.danger)
+            .padding(.horizontal, 8).frame(height: 36)
+            .pixelBorder(.grow(1))
             .contentShape(Rectangle())
         }
         .buttonStyle(PressStyle())
+    }
+
+    /// Ruhemodus an: kurzer Hinweis, Ausschalten in den Einstellungen
+    private var restNote: some View {
+        HStack(spacing: 8) {
+            Rectangle().fill(Color.dim).frame(width: PX * 3, height: PX * 3)
+            Text("RUHEMODUS").font(labelFont(10)).tracking(0.8)
+            Text("// SCHLÄFT · KEIN WACHSTUM, KEIN ABBAU").font(mono(9)).foregroundStyle(Color.muted)
+            Spacer()
+        }
+        .padding(.horizontal, 8).frame(height: 30)
+        .pixelBorder(.dim)
     }
 
     // MARK: Leiste unten
@@ -265,17 +241,16 @@ struct HomeView: View {
     private var bottomBar: some View {
         let f = store.fatigue()
         let tired = f.values.filter { $0 >= 0.5 }.count
-        let first = !store.hasBaseline
         return HStack(spacing: 6) {
-            Button(action: { first ? onRecord() : onGo() }) {
+            Button(action: onGo) {
                 ZStack {
                     PixelBlock().fill(Color.signal)
-                    Text(first ? "START" : "GO").font(display(first ? 20 : 30)).tracking(1).foregroundStyle(Color.white)
+                    Text("GO").font(display(30)).tracking(1).foregroundStyle(Color.white)
                 }
-                .frame(width: first ? 84 : 62)
+                .frame(width: 62)
             }
             .buttonStyle(PressStyle())
-            .accessibilityLabel(first ? "Start: Kraft messen" : "Los, nächste Übung")
+            .accessibilityLabel("Los, nächste Übung")
 
             Button { onReport(.top) } label: {
                 VStack(alignment: .leading, spacing: 0) {

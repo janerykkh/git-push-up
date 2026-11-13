@@ -38,13 +38,19 @@ struct LabReportView: View {
                     VStack(alignment: .leading, spacing: 16) {
                         header
                         biomarkerPanel(bio)
-                        pulsePanel(store.pulseStats())
+                        careStrip
                         Color.clear.frame(height: 0).id("scanTop")
                         scan(f)
                         if let m = selected { muscleInfo(m, f).id("info") }
                         tissue(f)
                         periodTabs
                         stats
+                        if !store.state.archive.isEmpty {
+                            Block(title: "ARCHIV", trailing: "\(store.state.archive.count) FREIGELASSEN", accent: .wire) {
+                                ArchiveGrid(items: store.state.archive)
+                            }
+                        }
+                        pulsePanel(store.pulseStats())
                         Text("LABOR-PROTOKOLL · ALLE DATEN BLEIBEN AUF DIESEM GERÄT")
                             .font(labelFont(9)).tracking(2).foregroundStyle(Color.dim)
                             .frame(maxWidth: .infinity)
@@ -125,10 +131,26 @@ struct LabReportView: View {
         }
     }
 
+    /// Die letzten 14 Tage: leer = nichts, grau = etwas, schwarz = gut gepflegt; heute orange umrandet
+    private var careStrip: some View {
+        let pts = store.carePoints(days: 14)
+        return Block(title: "PFLEGE 14 TAGE", accent: .signal) {
+            HStack(spacing: PX * 2) {
+                ForEach(Array(pts.enumerated()), id: \.offset) { i, p in
+                    let isToday = i == pts.count - 1
+                    let fill: Color = p == nil ? .clear : ((p ?? 0) >= 3 ? Color.fg : ((p ?? 0) > 0 ? Color.dim : .clear))
+                    PixelBlock().fill(fill)
+                        .frame(maxWidth: .infinity).frame(height: PX * 6)
+                        .overlay(PixelFrame().fill(isToday ? Color.signal : (p == nil ? Color.line : Color.line2)))
+                }
+            }
+        }
+    }
+
     // MARK: Puls
 
     private func pulsePanel(_ p: Store.PulseStats) -> some View {
-        Block(title: "PULS", trailing: "RUHE · MEDITATION · ERHOLUNG", accent: .danger) {
+        Block(title: "PULS", trailing: "NUR WENN DU MISST", accent: .danger) {
             HStack(alignment: .bottom, spacing: 10) {
                 VStack(alignment: .leading, spacing: 2) {
                     Label12(text: "RUHEPULS", color: .fg, size: 10)
@@ -184,8 +206,8 @@ struct LabReportView: View {
             .overlay(alignment: .topLeading) {
                 VStack(alignment: .leading, spacing: 4) {
                     Label12(text: "SPECIMEN · KÖRPER", color: .fg, size: 11)
-                    Label12(text: "EEG", color: .muted, size: 8)
-                    EEGWave(calm: calm, color: .mind).frame(width: 96, height: 22)
+                    Label12(text: "RESONANZ", color: .muted, size: 8)
+                    ResonanceWave(calm: calm, color: .mind).frame(width: 96, height: 22)
                 }
                 .padding(12)
             }

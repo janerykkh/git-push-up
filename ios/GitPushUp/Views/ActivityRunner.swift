@@ -25,44 +25,17 @@ struct ActivityRunner: View {
     let onSkip: () -> Void
     let onClose: () -> Void
 
-    /// Meditation: Timer; beim Start optional Puls vorher, nach dem Gong Puls nachher
-    @State private var pulseBefore = false
-    @State private var startAfterPulse: (() -> Void)? = nil
-    @State private var pulseAfter = false
-    @State private var medResult: DoneInfo? = nil
-
     var body: some View {
         let ex = pick.ex
         if ex.kind == .mind {
-            ZStack {
-                MeditationView(
-                    onFinish: { secs, complete in
-                        store.logResult(ex, target: 300, actual: secs, done: complete)
-                        let d = DoneInfo(stamp: "NEURO-SYNC", text: "\(secs / 60) Minuten Meditation", partly: !complete, exId: ex.id)
-                        if store.state.pulseAfter && complete { medResult = d; pulseAfter = true } else { onDone(d) }
-                    },
-                    onSkip: onSkip,
-                    onClose: onClose,
-                    beforeStart: store.state.pulseAfter ? { go in startAfterPulse = go; pulseBefore = true } : nil
-                )
-                if pulseBefore {
-                    PulseView(context: .medBefore, onClose: {
-                        pulseBefore = false
-                        let go = startAfterPulse
-                        startAfterPulse = nil
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { go?() }
-                    })
-                    .transition(.move(edge: .bottom))
-                    .zIndex(1)
-                }
-                if pulseAfter {
-                    PulseView(context: .medAfter, onClose: { onDone(medResult ?? DoneInfo(stamp: "NEURO-SYNC", text: "Meditation", partly: false)) })
-                        .transition(.move(edge: .bottom))
-                        .zIndex(1)
-                }
-            }
-            .animation(.easeOut(duration: 0.25), value: pulseBefore)
-            .animation(.easeOut(duration: 0.25), value: pulseAfter)
+            MeditationView(
+                onFinish: { secs, complete in
+                    store.logResult(ex, target: 300, actual: secs, done: complete)
+                    onDone(DoneInfo(stamp: "RESONANZ", text: "\(secs / 60) Minuten Meditation", partly: !complete, exId: ex.id))
+                },
+                onSkip: onSkip,
+                onClose: onClose
+            )
         } else {
             ExerciseView(
                 ex: ex,
@@ -125,11 +98,8 @@ extension View {
 }
 
 extension Store {
-    /// Nach einem Boss-Satz den Erholungspuls anbieten (wenn eingeschaltet)
-    func offerPulse(after d: DoneInfo) -> PulseAfter? {
-        guard state.pulseAfter, d.boss, let id = d.exId else { return nil }
-        return PulseAfter(context: .recovery(id))
-    }
+    /// Pulsmessungen öffnen sich nicht mehr von selbst (nur noch über den Knopf)
+    func offerPulse(after d: DoneInfo) -> PulseAfter? { nil }
 }
 
 /// Der +-Knopf: jede Übung direkt auswählen und sofort machen

@@ -118,7 +118,7 @@ extension GraphicsContext {
 
 /// Hirnströme als Pixel-Linie: kurz nach einer Meditation ruhige Alpha-Wellen, je länger her,
 /// desto schneller und verrauschter, mit gelegentlichen Ausschlägen
-struct EEGWave: View {
+struct ResonanceWave: View {
     let calm: Double
     var color: Color = .fg
     var body: some View {

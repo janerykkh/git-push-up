@@ -29,6 +29,7 @@ struct RootView: View {
     @State private var done: DoneInfo? = nil
     @State private var report: ReportReq? = nil
     @State private var pulse: PulseAfter? = nil
+    @State private var showRelease = false
 
     struct ReportReq: Identifiable { let id = UUID(); let jump: ReportJump }
 
@@ -52,7 +53,8 @@ struct RootView: View {
             onRecord: { showRecord = true },
             onSettings: { showSettings = true },
             onPulse: { pulse = PulseAfter(context: $0) },
-            onReport: { report = ReportReq(jump: $0) }
+            onReport: { report = ReportReq(jump: $0) },
+            onRelease: { showRelease = true }
         )
         .doneFlash($done)
         .fullScreenCover(item: $exercise) { pick in
@@ -70,6 +72,10 @@ struct RootView: View {
         .pulseAfterExercise($pulse, store: store)
         .fullScreenCover(item: $report) { r in
             LabReportView(onClose: { report = nil }, jump: r.jump)
+                .environmentObject(store)
+        }
+        .fullScreenCover(isPresented: $showRelease) {
+            ReleaseView(onClose: { showRelease = false })
                 .environmentObject(store)
         }
         .sheet(isPresented: $showPicker) {
@@ -103,7 +109,7 @@ struct RootView: View {
             .environmentObject(store)
         }
         .onChange(of: scenePhase) { phase in
-            if phase == .active { store.weeklyReview() }
+            if phase == .active { store.weeklyReview(); store.rescheduleReminders() }
         }
     }
 }
