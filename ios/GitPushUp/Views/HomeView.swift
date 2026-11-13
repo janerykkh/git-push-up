@@ -97,7 +97,7 @@ struct HomeView: View {
         HStack(alignment: .bottom, spacing: 8) {
             VStack(alignment: .leading, spacing: 0) {
                 HStack(spacing: 4) {
-                    Text("SPECIMEN //").foregroundStyle(Color.muted)
+                    Text("\(v.stage) //").foregroundStyle(Color.muted)
                     Rectangle().fill(v.health >= 0.15 ? Color.signal : Color.dim).frame(width: PX * 3, height: PX * 3)
                     Text(v.healthLabel)
                 }
@@ -117,10 +117,7 @@ struct HomeView: View {
             VStack(alignment: .trailing, spacing: 1) {
                 Text("ID \(c.map { String($0.seed) } ?? "—")")
                 Text("TAG \(String(format: "%03d", v.ageDays))")
-                HStack(spacing: 4) {
-                    Text("STUFE \(String(format: "%02d", v.stageIndex))/05").foregroundStyle(Color.muted)
-                    Text(v.stage).font(mono(10, .bold))
-                }
+                Text("STUFE \(String(format: "%02d", v.stageIndex))/05")
             }
             .font(mono(10))
             .padding(.bottom, 4)
@@ -135,13 +132,37 @@ struct HomeView: View {
                 Text(v.streakBonus > 0 ? "BONUS +\(Int((v.streakBonus * 100).rounded())) %" : "TAGE AM STÜCK")
                     .font(mono(9, v.streakBonus > 0 ? .bold : .regular)).foregroundStyle(v.streakBonus > 0 ? Color.signal : Color.muted)
             }
-            cell("HEUTE", de(v.todayPts, 1)) {
-                Text("WACHSTUMSPUNKTE").font(mono(9)).foregroundStyle(Color.muted)
+            .frame(maxWidth: 92)
+            cell("HEUTE", String(format: "%02d", min(99, v.todayCount))) {
+                Text(v.todayCount == 1 ? "ÜBUNG" : "ÜBUNGEN").font(mono(9)).foregroundStyle(Color.muted)
             }
-            cell("WACHSTUM", de(v.g * 100, 2) + "%") {
-                PixelBar(value: v.g, color: .fg, height: 3, block: PX)
-            }
+            .frame(maxWidth: 92)
+            growthCell(v)
         }
+    }
+
+    /// Wachstum: grün, wenn es gerade wächst (je kräftiger, desto grüner), grau bei Stillstand, rot beim Schrumpfen.
+    /// Darunter, wie lange es bis 100 % dauert, wenn es so weitergeht wie in den letzten Tagen.
+    private func growthCell(_ v: CreatureVitals) -> some View {
+        let tr = v.trend
+        let c: Color = tr > 0.03 ? Color.grow(min(1, tr)) : (tr < -0.03 ? Color.danger : Color.muted)
+        let eta: String = {
+            if v.g >= 0.9999 { return "AUSGEWACHSEN" }
+            guard let d = v.etaDays, d < 999 else { return "BIS 100 %: ----" }
+            return d < 1 ? "BIS 100 %: < 1 TAG" : "BIS 100 %: ≈ \(Int(d.rounded())) TAGE"
+        }()
+        return VStack(alignment: .leading, spacing: 2) {
+            HStack(alignment: .firstTextBaseline) {
+                Text("WACHSTUM").font(labelFont(9)).tracking(0.8)
+                Spacer()
+                Text(tr > 0.03 ? "▲" : (tr < -0.03 ? "▼" : "■")).font(mono(9, .bold)).foregroundStyle(c)
+            }
+            Text(de(v.g * 100, 2) + " %").font(display(26)).monospacedDigit().foregroundStyle(c).lineLimit(1).minimumScaleFactor(0.5)
+            Text(eta).font(mono(9, .bold)).foregroundStyle(c)
+        }
+        .padding(.horizontal, 7).padding(.vertical, 6)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .pixelBorder()
     }
 
     /// Zahl mit Komma und fester Nachkommazahl
@@ -177,25 +198,24 @@ struct HomeView: View {
         }
     }
 
-    /// Prägungspunkte (langsam vergessend) und die Sättigung, bei der sie sich bei regelmäßiger Pflege einpendeln
+    /// Anteile der drei Pflegearten. Wer immer GO folgt, landet bei etwa 33/33/33; was du überspringst oder selbst
+    /// dazunimmst, verschiebt die Anteile, und das Wesen entwickelt sich in diese Richtung.
     private func traitGauges(_ v: CreatureVitals) -> some View {
         VStack(spacing: 4) {
-            gauge("TONUS", "KRAFT", v.strengthPts, CreatureModel.strengthGoal)
-            gauge("ELASTIZITÄT", "DEHNEN", v.stretchPts, CreatureModel.stretchGoal)
-            gauge("RESONANZ", "GEIST", v.mindPts, CreatureModel.mindGoal)
+            gauge("TONUS", v.shares.s)
+            gauge("FLEXIBILITÄT", v.shares.t)
+            gauge("RESONANZ", v.shares.m)
         }
     }
 
-    private func gauge(_ name: String, _ sub: String, _ pts: Double, _ goal: Double) -> some View {
+    private func gauge(_ name: String, _ share: Double) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .firstTextBaseline, spacing: 4) {
                 Text(name).font(labelFont(9)).tracking(0.8)
-                Text("/ \(sub)").font(mono(9)).foregroundStyle(Color.dim)
                 Spacer()
-                Text(de(pts, 1)).font(mono(10, .bold)).monospacedDigit()
-                Text("/ \(Int(goal)) PKT").font(mono(9)).foregroundStyle(Color.muted)
+                Text("\(String(format: "%02d", Int((share * 100).rounded()))) %").font(mono(10, .bold)).monospacedDigit()
             }
-            PixelBar(value: pts / goal, color: .signal, height: 4)
+            PixelBar(value: share, color: .signal, height: 4)
         }
     }
 
@@ -270,6 +290,14 @@ struct HomeView: View {
 
 extension Color {
     static let go = Color.signal
+    /// Grün für Wachstum: von Grau (kaum) bis kräftigem Grün (stark)
+    static func grow(_ k: Double) -> Color {
+        let a = (0x6a, 0x6a, 0x66), b = (0x1f, 0x9a, 0x3e)
+        let t = 0.35 + 0.65 * max(0, min(1, k))
+        return Color(.sRGB, red: (Double(a.0) + Double(b.0 - a.0) * t) / 255,
+                     green: (Double(a.1) + Double(b.1 - a.1) * t) / 255,
+                     blue: (Double(a.2) + Double(b.2 - a.2) * t) / 255, opacity: 1)
+    }
 }
 
 extension CreatureVitals {

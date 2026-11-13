@@ -7,6 +7,8 @@ import Security
 final class Store: ObservableObject {
     @Published var state = PersistedState()
     @Published var backupStatus: String = ""
+    /// "Passt gerade nicht": diese Übungen eine Weile überspringen (nur im Speicher)
+    var skipped: [String: Millis] = [:]
 
     private let fileURL: URL = {
         let dir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
@@ -62,6 +64,7 @@ final class Store: ObservableObject {
                                   boss: boss ? true : nil))
         state.lastCat = ex.cat.rawValue
         state.lastEx = ex.id
+        skipped = [:]
         save()
         Task { await autoBackup() }
     }

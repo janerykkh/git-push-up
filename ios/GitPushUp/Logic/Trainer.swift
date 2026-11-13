@@ -266,8 +266,7 @@ extension Store {
         // Kandidat für einen Boss-Satz unter den guten Optionen? Dann den nehmen.
         let good = ranked.filter { $0.1 >= best.1 - 0.2 }
         if let b = good.first(where: { shouldBoss($0.0, fatigue: f) }) { return (b.0, true) }
-        let top = ranked.filter { $0.1 >= best.1 - 0.08 }
-        return (top.randomElement()?.0 ?? best.0, false)
+        return (best.0, false)
     }
 
     func why(_ ex: Exercise) -> String {

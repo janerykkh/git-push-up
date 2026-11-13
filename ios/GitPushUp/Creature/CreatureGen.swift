@@ -476,8 +476,10 @@ struct CreatureFrame {
 func pixelSize(_ g: Double) -> Int { jsRound(8 + 72 * pow(g, 1.05)) }
 func frameSpan(_ g: Double) -> Double { lerpD(1.5, 2.5, smoothstep(0, 0.5, g)) }
 
-func renderCreature(_ G: Genome, g: Double, traits T: Traits, time: Double, blink: Bool, vigor: Double = 1) -> CreatureFrame {
-    let N = pixelSize(g)
+/// `n`: Pixel pro Seite. Ohne Angabe wie im Prototyp (8 bis 80); die App gibt sie vor, damit ein Sprite-Pixel
+/// genauso groß ist wie jedes andere Pixel auf dem Bildschirm.
+func renderCreature(_ G: Genome, g: Double, traits T: Traits, time: Double, blink: Bool, vigor: Double = 1, n: Int? = nil) -> CreatureFrame {
+    let N = max(6, n ?? pixelSize(g))
     let C = buildCreature(G, g, T, time), pal = Palette(G, vigor: vigor)
     let span = frameSpan(g), px = span / Double(N), h0 = span / 2 // Rahmen: früh enger, damit die Zelle ein paar Pixel füllt
     let parts = C.parts.sorted { ($0.z, $0.order) < ($1.z, $1.order) }

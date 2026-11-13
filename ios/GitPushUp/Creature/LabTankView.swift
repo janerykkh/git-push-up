@@ -20,6 +20,8 @@ final class CreatureRenderer: ObservableObject {
     @Published private(set) var float = 0.0
 
     var params: Params?
+    /// Gewünschte Auflösung (Pixel pro Seite). Gewechselt wird erst ab 2 Pixeln Unterschied, damit es nicht flackert.
+    var targetN = 8
     private var genome: Genome?
     private var nextBlink = 0.0, blinkUntil = 0.0
     private var lastSeed = -1
@@ -37,8 +39,9 @@ final class CreatureRenderer: ObservableObject {
                 }
                 let blink = now < blinkUntil && p.g > 0.15
                 let G = genome!
+                let useN = (abs(targetN - n) >= 2 || p.seed != lastSeed || p.g < 0.02) ? targetN : n
                 let frame = await Task.detached(priority: .userInitiated) {
-                    renderCreature(G, g: p.g, traits: p.traits, time: t, blink: blink, vigor: p.vigor)
+                    renderCreature(G, g: p.g, traits: p.traits, time: t, blink: blink, vigor: p.vigor, n: useN)
                 }.value
                 let rows = frame.rgba.count / 4 / max(1, frame.n)
                 var topRow = frame.n - 1
@@ -71,7 +74,8 @@ struct LabTankView: View {
     @StateObject private var renderer = CreatureRenderer()
     @State private var scene: (bg: CGImage?, glass: CGImage?, w: Int, h: Int)? = nil
 
-    private let pixel: CGFloat = 3
+    /// Ein Pixel im Labor ist genauso groß wie jedes andere Pixel der App
+    private let pixel: CGFloat = PX
 
     private var params: CreatureRenderer.Params {
         CreatureRenderer.Params(seed: seed, g: previewG ?? vitals.g, traits: vitals.traits,
@@ -90,9 +94,11 @@ struct LabTankView: View {
                     Image(decorative: bg, scale: 1).resizable().interpolation(.none)
                         .frame(width: CGFloat(s.w) * pixel, height: CGFloat(s.h) * pixel)
                 }
-                TimelineView(.animation(minimumInterval: 1 / 30)) { tl in
+                TimelineView(.animation(minimumInterval: 1 / 15)) { tl in
                     creature(t: tl.date.timeIntervalSinceReferenceDate, W: W, H: H, floorPt: floorPt, ceilPt: ceilPt)
                 }
+                .onAppear { renderer.targetN = wantN(W: W, floorPt: floorPt, ceilPt: ceilPt) }
+                .onChange(of: wantN(W: W, floorPt: floorPt, ceilPt: ceilPt)) { n in renderer.targetN = n }
                 if let s = scene, let gl = s.glass {
                     Image(decorative: gl, scale: 1).resizable().interpolation(.none)
                         .frame(width: CGFloat(s.w) * pixel, height: CGFloat(s.h) * pixel)
@@ -110,37 +116,47 @@ struct LabTankView: View {
         .task { await renderer.loop() }
     }
 
+    /// Das Labor wird einmal pro Größe im Hintergrund gerechnet (Sichtstrahlen für jedes Pixel)
     private func makeScene(_ w: Int, _ h: Int) {
         guard w > 8, h > 8, scene?.w != w || scene?.h != h else { return }
-        scene = (LabScene.backdrop(w, h).image, LabScene.glass(w, h).image, w, h)
+        Task {
+            let imgs = await Task.detached(priority: .userInitiated) { (LabScene.backdrop(w, h).image, LabScene.glass(w, h).image) }.value
+            scene = (imgs.0, imgs.1, w, h)
+        }
+    }
+
+    /// Wie viele Pixel das Wesen breit sein soll: wächst mit dem Alter, passt aber immer in den Kasten
+    private func wantN(W: CGFloat, floorPt: CGFloat, ceilPt: CGFloat) -> Int {
+        let g = previewG ?? vitals.g
+        let avail = floorPt - ceilPt - pixel * 2
+        let want = avail * 1.25 * CGFloat((0.3 + 0.62 * g) * frameSpan(g) / 2.5)
+        let content = CGFloat(max(0.05, renderer.bottomFrac - renderer.topFrac))
+        let size = min(want, avail / content, W * 0.9)
+        return max(6, Int(size / pixel))
     }
 
     @ViewBuilder
     private func creature(t: Double, W: CGFloat, H: CGFloat, floorPt: CGFloat, ceilPt: CGFloat) -> some View {
         if let img = renderer.image {
-            let g = previewG ?? vitals.g
             let sleepy = previewG == nil && vitals.health < 0.15
             let avail = floorPt - ceilPt - pixel * 2
-            // Wunschgröße wie im Prototyp, aber nie höher als der Kasten
-            let want = avail * 1.25 * CGFloat((0.3 + 0.62 * g) * frameSpan(g) / 2.5)
-            let content = CGFloat(max(0.05, renderer.bottomFrac - renderer.topFrac))
-            let size = min(want, avail / content, W * 0.9)
-            let contentH = size * content
+            let size = CGFloat(renderer.n) * pixel
+            let contentH = size * CGFloat(max(0.05, renderer.bottomFrac - renderer.topFrac))
             let fl = CGFloat(renderer.float)
-            let hover = min(fl * H * 0.12, max(0, avail - contentH))
+            let hover = min(fl * avail * 0.15, max(0, avail - contentH))
             let speed = sleepy ? 0.5 : 1.0
-            let bob = CGFloat(sin(t * 1.1 * speed)) * (fl > 0.05 ? H * 0.02 * fl : 0)
-            let breathe = 1 + 0.018 * CGFloat(sin(t * 2.2 * speed))
-            let bottomY = floorPt - hover + bob
+            let bob = CGFloat(sin(t * 1.1 * speed)) * (fl > 0.05 ? avail * 0.025 * fl : 0)
+            // Auf das Pixelraster gelegt, damit die Pixel des Wesens genau auf denen des Labors sitzen
+            let left = snap((W - size) / 2)
+            let top = snap(floorPt - hover + bob - size * CGFloat(renderer.bottomFrac))
             ZStack(alignment: .topLeading) {
-                // Schatten auf dem Sockel, kleiner wenn es schwebt
-                Ellipse().fill(Color.black.opacity(0.09 * Double(1 - 0.6 * fl)))
-                    .frame(width: size * 0.45 * (1 - 0.4 * fl), height: pixel * 3)
-                    .position(x: W / 2, y: floorPt + pixel * 0.5)
+                // Schatten auf dem Kastenboden, kleiner wenn es schwebt
+                Rectangle().fill(Color.black.opacity(0.08 * Double(1 - 0.6 * fl)))
+                    .frame(width: snap(size * 0.45 * (1 - 0.4 * fl)), height: pixel * 2)
+                    .position(x: W / 2, y: snap(floorPt) + pixel)
                 Image(decorative: img, scale: 1).resizable().interpolation(.none)
                     .frame(width: size, height: size)
-                    .scaleEffect(x: 1 / breathe, y: breathe, anchor: .bottom)
-                    .position(x: W / 2, y: bottomY - size * CGFloat(renderer.bottomFrac) + size / 2)
+                    .offset(x: left, y: top)
             }
             .frame(width: W, height: H, alignment: .topLeading)
         }

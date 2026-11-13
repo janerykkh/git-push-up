@@ -1,8 +1,10 @@
 import Foundation
 
-/// Der GO-Knopf: entscheidet zwischen Kraft, Dehnen und Meditation, damit es über die Woche ausgewogen bleibt.
-/// Grundmischung etwa 60 % Kraft, 25 % Dehnen, 15 % Meditation. Was zuletzt zu kurz kam, wird wahrscheinlicher.
-/// Viel Erschöpfung → mehr Dehnen, abends → mehr Ruhe, Meditation höchstens alle paar Stunden.
+/// Der GO-Knopf: kein Zufall. Zu jedem Zeitpunkt gibt es eine beste Übung, berechnet aus dem Verlauf.
+/// Erst die Art (Kraft, Dehnen, Meditation): angestrebt sind etwa 60/25/15 %, es kommt die Art, die gemessen daran
+/// am weitesten hinterherhinkt. Erschöpfung, Tageszeit und Abstand zur letzten Meditation verschieben das.
+/// Dann die beste Übung dieser Art: frische Muskeln, lange nicht gemacht; Dehnen bevorzugt, was die zuletzt
+/// belasteten Muskeln entlastet. "Passt gerade nicht" nimmt die nächstbeste, schließen ändert nichts.
 extension Store {
 
     static let kindTarget: [ActivityKind: Double] = [.strength: 0.6, .stretch: 0.25, .mind: 0.15]
@@ -12,68 +14,83 @@ extension Store {
         return 999
     }
 
-    func kindWeights() -> [ActivityKind: Double] {
-        let since = nowMs() - 7 * dayMs
-        let recent = state.log.filter { $0.ts >= since && !$0.isTest && $0.exercise != nil }
-        let total = Double(recent.count)
-        var w: [ActivityKind: Double] = [:]
-        for (k, t) in Self.kindTarget {
-            let share = total > 0 ? Double(recent.filter { $0.exercise?.kind == k }.count) / total : t
-            w[k] = max(0.03, t + (t - share))
-        }
-
-        // Erschöpfung: je mehr Muskeln platt sind, desto weniger Kraft und desto mehr Dehnen
+    /// Angestrebter Anteil je Art, angepasst an Erschöpfung, Tageszeit und Pausen
+    func kindTargets() -> [ActivityKind: Double] {
+        var w = Self.kindTarget
         let f = fatigue()
         let ms = Muscle.allCases
         let avgF = ms.reduce(0.0) { $0 + min(1, f[$1] ?? 0) } / Double(ms.count)
         w[.strength, default: 0] *= max(0.15, 1 - avgF * 1.2)
         w[.stretch, default: 0] *= 1 + avgF
-
-        // Meditation nicht mehrmals kurz hintereinander, nach langer Pause eher
         let hm = hoursSinceKind(.mind)
-        if hm < 3 { w[.mind] = 0.01 } else if hm > 20 { w[.mind, default: 0] *= 1.8 }
-
-        // Abends eher Ruhe
+        if hm < 3 { w[.mind] = 0.001 } else if hm > 20 { w[.mind, default: 0] *= 1.8 }
         let hour = Calendar.current.component(.hour, from: Date())
         if hour >= 19 || hour < 6 {
             w[.mind, default: 0] *= 1.5
             w[.stretch, default: 0] *= 1.3
             w[.strength, default: 0] *= 0.7
         }
-
-        // Nicht zweimal Dehnen direkt hintereinander
         if let le = state.lastEx, Exercise.byId[le]?.kind == .stretch { w[.stretch, default: 0] *= 0.4 }
         return w
     }
 
-    func pick(excluding: String? = nil) -> (ex: Exercise, boss: Bool) {
-        var w = kindWeights()
-        // "Passt gerade nicht" bei Dehnen oder Meditation: dann etwas anderes
-        if let id = excluding, let k = Exercise.byId[id]?.kind, k != .strength { w[k] = 0 }
-        let total = w.values.reduce(0, +)
-        var r = Double.random(in: 0..<max(total, 0.0001))
-        var kind: ActivityKind = .strength
-        for k in [ActivityKind.strength, .stretch, .mind] {
-            r -= w[k] ?? 0
-            if r < 0 { kind = k; break }
+    /// Reihenfolge der Arten: wer gemessen an seinem Ziel am wenigsten dran war, kommt zuerst
+    func kindOrder() -> [ActivityKind] {
+        let since = nowMs() - 7 * dayMs
+        let recent = state.log.filter { $0.ts >= since && !$0.isTest }
+        let t = kindTargets()
+        let prio: [(ActivityKind, Double)] = [ActivityKind.strength, .stretch, .mind].map { k in
+            let n = Double(recent.filter { $0.exercise?.kind == k }.count)
+            return (k, (t[k] ?? 0) / (n + 1))
         }
-        switch kind {
-        case .strength: return pickStrength(excluding: excluding)
-        case .stretch: return (pickStretch(excluding: excluding), false)
-        case .mind: return (Exercise.byId["meditation"] ?? pickStretch(excluding: excluding), false)
-        }
+        return prio.sorted { $0.1 > $1.1 }.map { $0.0 }
     }
 
-    /// Dehnübung: am liebsten eine, die erschöpfte Muskeln entlastet und lange nicht dran war
-    func pickStretch(excluding: String? = nil) -> Exercise {
+    /// Alle Kandidaten in der Reihenfolge, in der GO sie anbieten würde
+    func ranking() -> [(ex: Exercise, boss: Bool)] {
         let f = fatigue()
-        let cands = pool.filter { $0.kind == .stretch && $0.id != excluding }
+        var out: [(ex: Exercise, boss: Bool)] = []
+        for k in kindOrder() {
+            switch k {
+            case .strength:
+                var ranked = strengthPool.filter { $0.id != state.lastEx }.map { ($0, score($0, f)) }.sorted { $0.1 > $1.1 }
+                if ranked.isEmpty { ranked = strengthPool.map { ($0, 0.0) } }
+                // Boss-Satz unter den guten Optionen? Dann der zuerst.
+                if let best = ranked.first, let i = ranked.firstIndex(where: { $0.1 >= best.1 - 0.2 && shouldBoss($0.0, fatigue: f) }) {
+                    out.append((ranked[i].0, true))
+                    ranked.remove(at: i)
+                }
+                out += ranked.map { ($0.0, false) }
+            case .stretch:
+                out += stretchRanking(f).map { ($0, false) }
+            case .mind:
+                if let m = Exercise.byId["meditation"] { out.append((m, false)) }
+            }
+        }
+        return out
+    }
+
+    func pick(excluding: String? = nil) -> (ex: Exercise, boss: Bool) {
+        let now = nowMs()
+        if let id = excluding { skipped[id] = now }
+        skipped = skipped.filter { now - $0.value < 45 * 60_000 }
+        let r = ranking()
+        return r.first { skipped[$0.ex.id] == nil } ?? r.first ?? (Exercise.all[0], false)
+    }
+
+    /// Dehnübungen: am liebsten eine, die gerade belastete Muskeln entlastet und lange nicht dran war
+    func stretchRanking(_ f: [Muscle: Double]) -> [Exercise] {
+        let cands = pool.filter { $0.kind == .stretch }
         let scored = cands.map { ex -> (Exercise, Double) in
             let relief = ex.relieves.reduce(0.0) { $0 + min(1, f[$1] ?? 0) }
-            let s = min(1, hoursSince(ex.id) / 24) + 0.6 * relief + Double.random(in: 0..<0.25)
+            let s = min(1, hoursSince(ex.id) / 24) + 0.6 * relief - (ex.id == state.lastEx ? 2 : 0)
             return (ex, s)
         }
-        return scored.max { $0.1 < $1.1 }?.0 ?? Exercise.all[0]
+        return scored.sorted { $0.1 > $1.1 }.map { $0.0 }
+    }
+
+    func pickStretch(excluding: String? = nil) -> Exercise {
+        stretchRanking(fatigue()).first { $0.id != excluding } ?? Exercise.all[0]
     }
 
     // MARK: Biomarker für die Laborakte
