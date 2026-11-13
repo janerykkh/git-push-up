@@ -31,10 +31,10 @@ struct CreatureVitals {
     }
     var healthLabel: String {
         switch health {
-        case 0.7...: return "VITAL"
-        case 0.4...: return "STABIL"
+        case 0.7...: return "MUNTER"
+        case 0.4...: return "WACH"
         case 0.15...: return "MATT"
-        default: return "SCHLÄFRIG"
+        default: return "SCHLÄFT"
         }
     }
 }
@@ -138,4 +138,29 @@ extension Store {
             ageDays: max(0, Int((now - c.born) / dayMs))
         )
     }
+
+    /// Pflegepunkte pro Tag (gedeckelt auf 5), die letzten `n` Tage, ältester zuerst. nil = vor dem Schlüpfen.
+    func carePoints(days n: Int) -> [Double?] {
+        let cal = Calendar.current
+        let today = cal.startOfDay(for: Date())
+        let born = state.creature.map { cal.startOfDay(for: Date(timeIntervalSince1970: $0.born / 1000)) } ?? today
+        var sums: [Date: Double] = [:]
+        let from = cal.date(byAdding: .day, value: -(n - 1), to: today) ?? today
+        for l in state.log where l.ts >= from.timeIntervalSince1970 * 1000 {
+            let d = cal.startOfDay(for: Date(timeIntervalSince1970: l.ts / 1000))
+            sums[d, default: 0] += CreatureModel.weight(l).1
+        }
+        return (0..<n).map { i in
+            let d = cal.date(byAdding: .day, value: i - (n - 1), to: today) ?? today
+            if d < born { return nil }
+            return min(CreatureModel.dailyCap, sums[d] ?? 0)
+        }
+    }
+
+    /// Hirnströme: wie ruhig, abhängig davon, wann zuletzt meditiert wurde (1 = gerade eben, fällt über ~1,5 Tage ab)
+    var eegCalm: Double {
+        let h = hoursSinceKind(.mind)
+        return h >= 999 ? 0 : exp(-h / 30)
+    }
 }
+

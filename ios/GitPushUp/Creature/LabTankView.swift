@@ -82,14 +82,16 @@ struct LabTankView: View {
         GeometryReader { geo in
             let W = geo.size.width, H = geo.size.height
             let w = Int(ceil(W / pixel)), h = Int(ceil(H / pixel))
-            let floorPt = CGFloat(LabScene.floorRow(h) - 1) * pixel
+            let G = LabScene.geo(w, h)
+            let floorPt = CGFloat(G.feetY) * pixel
+            let ceilPt = CGFloat(G.ct) * pixel
             ZStack(alignment: .topLeading) {
                 if let s = scene, let bg = s.bg {
                     Image(decorative: bg, scale: 1).resizable().interpolation(.none)
                         .frame(width: CGFloat(s.w) * pixel, height: CGFloat(s.h) * pixel)
                 }
                 TimelineView(.animation(minimumInterval: 1 / 30)) { tl in
-                    creature(t: tl.date.timeIntervalSinceReferenceDate, W: W, H: H, floorPt: floorPt)
+                    creature(t: tl.date.timeIntervalSinceReferenceDate, W: W, H: H, floorPt: floorPt, ceilPt: ceilPt)
                 }
                 if let s = scene, let gl = s.glass {
                     Image(decorative: gl, scale: 1).resizable().interpolation(.none)
@@ -114,14 +116,13 @@ struct LabTankView: View {
     }
 
     @ViewBuilder
-    private func creature(t: Double, W: CGFloat, H: CGFloat, floorPt: CGFloat) -> some View {
+    private func creature(t: Double, W: CGFloat, H: CGFloat, floorPt: CGFloat, ceilPt: CGFloat) -> some View {
         if let img = renderer.image {
             let g = previewG ?? vitals.g
             let sleepy = previewG == nil && vitals.health < 0.15
-            let topMargin = pixel * 6
-            let avail = floorPt - topMargin
+            let avail = floorPt - ceilPt - pixel * 2
             // Wunschgröße wie im Prototyp, aber nie höher als der Kasten
-            let want = avail * 1.1 * CGFloat((0.3 + 0.62 * g) * frameSpan(g) / 2.5)
+            let want = avail * 1.25 * CGFloat((0.3 + 0.62 * g) * frameSpan(g) / 2.5)
             let content = CGFloat(max(0.05, renderer.bottomFrac - renderer.topFrac))
             let size = min(want, avail / content, W * 0.9)
             let contentH = size * content
@@ -133,8 +134,8 @@ struct LabTankView: View {
             let bottomY = floorPt - hover + bob
             ZStack(alignment: .topLeading) {
                 // Schatten auf dem Sockel, kleiner wenn es schwebt
-                Ellipse().fill(Color.black.opacity(0.07 * Double(1 - 0.6 * fl)))
-                    .frame(width: size * 0.45 * (1 - 0.4 * fl), height: pixel * 2)
+                Ellipse().fill(Color.black.opacity(0.09 * Double(1 - 0.6 * fl)))
+                    .frame(width: size * 0.45 * (1 - 0.4 * fl), height: pixel * 3)
                     .position(x: W / 2, y: floorPt + pixel * 0.5)
                 Image(decorative: img, scale: 1).resizable().interpolation(.none)
                     .frame(width: size, height: size)

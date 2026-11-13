@@ -1,8 +1,7 @@
 import SwiftUI
 
-// WEISSES LABOR: hell, sauber, ein bisschen Zukunft. Fast weiße Flächen mit leichtem Grünstich,
-// dunkle Tinte, drei klare Farben für die drei Pflegearten (Kraft Muskelrot, Dehnen Petrol, Geist Violett), GO in Signal-Orange.
-// Kein Leuchten, keine Scanlines: der Glaskasten mit dem Wesen ist der einzige Hingucker.
+// LABORBLATT: hellgraues Papier, schwarze Haarlinien, ein Signal-Orange, Schiefergrau für Geräte.
+// Punktmatrix-Schrift (Doto) für Zahlen und Namen, IBM Plex Mono für alles andere. Kein Leuchten, keine Verläufe.
 // Die alten Farbnamen bleiben, damit alle Bildschirme automatisch mitziehen.
 
 extension Color {
@@ -13,46 +12,53 @@ extension Color {
                   blue: Double(hex & 0xff) / 255,
                   opacity: opacity)
     }
-    static let bg = Color(hex: 0xf1f3f1)
-    static let panel = Color(hex: 0xfbfcfb)
-    static let line = Color(hex: 0xe1e6e3)
-    static let line2 = Color(hex: 0xc9d1cd)
-    static let fg = Color(hex: 0x1b2420)
-    static let muted = Color(hex: 0x5f6b66)
-    static let dim = Color(hex: 0x98a39e)
-    static let wire = Color(hex: 0x11806f)     // Petrol: Messgeräte, Dehnen
-    static let phos = Color(hex: 0x2f9a52)     // Grün: aktiv, geschafft
-    static let amber = Color(hex: 0xd9822b)    // Hinweis, Rekord
-    static let danger = Color(hex: 0xd63a4f)
-    static let mind = Color(hex: 0x6b52d6)     // Violett: Geist
-    static let force = Color(hex: 0xb7413a)    // Muskelrot: Kraft
-    static let glassTop = Color(hex: 0xe6ecea)
+    static let bg = Color(hex: 0xe9e9e6)
+    static let panel = Color(hex: 0xf1f1ee)
+    static let line = Color(hex: 0xd0d0cc)
+    static let line2 = Color(hex: 0x1c1c1c)    // Haarlinie, Rahmen
+    static let fg = Color(hex: 0x181818)
+    static let muted = Color(hex: 0x6a6a66)
+    static let dim = Color(hex: 0xa0a09c)
+    static let wire = Color(hex: 0x3e464d)     // Schiefer: Geräte, Messwerte
+    static let phos = Color(hex: 0x181818)     // aktiv, geschafft: Tinte
+    static let amber = Color(hex: 0xf04e23)    // Hinweis, Rekord: Signal-Orange
+    static let danger = Color(hex: 0xd4351c)
+    static let mind = Color(hex: 0x5b6190)     // Geist: gedämpftes Blauviolett
+    static let force = Color(hex: 0xf04e23)
+    static let signal = Color(hex: 0xf04e23)
+    static let glassTop = Color(hex: 0xdedfdc)
 }
 
 extension ExCategory {
     var color: Color {
         switch self {
-        case .beine: return Color(hex: 0x4f9a2f)
-        case .druecken: return Color(hex: 0xd55f28)
-        case .ziehen: return Color(hex: 0x2f7fd0)
-        case .rumpf: return Color(hex: 0xa64ac9)
-        case .dehnen: return Color(hex: 0x11806f)
-        case .geist: return Color(hex: 0x6b52d6)
+        case .beine: return Color(hex: 0x181818)
+        case .druecken: return Color(hex: 0xf04e23)
+        case .ziehen: return Color(hex: 0x3e464d)
+        case .rumpf: return Color(hex: 0x8c8c88)
+        case .dehnen: return Color(hex: 0x5f8a84)
+        case .geist: return Color(hex: 0x5b6190)
         }
     }
 }
 
 /// Messwerte, Zahlen, Fließtext
 func mono(_ size: CGFloat, _ weight: Font.Weight = .regular) -> Font {
-    .system(size: size, weight: weight, design: .monospaced)
+    let name: String
+    switch weight {
+    case .semibold, .bold, .heavy, .black: name = "IBMPlexMono-SemiBold"
+    case .medium: name = "IBMPlexMono-Medium"
+    default: name = "IBMPlexMono-Regular"
+    }
+    return .custom(name, size: size)
 }
 
-/// Große Beschriftungen: Futura, wie auf Laborgeräten und Filmplakaten der 60er
+/// Große Zahlen und Namen: Punktmatrix wie auf einer Geräteanzeige
 func display(_ size: CGFloat, condensed: Bool = true) -> Font {
-    .custom(condensed ? "Futura-CondensedExtraBold" : "Futura-Bold", size: size)
+    .custom("DotoLab-ExtraBold", size: size)
 }
 
-func labelFont(_ size: CGFloat) -> Font { .custom("Futura-Medium", size: size) }
+func labelFont(_ size: CGFloat) -> Font { .custom("IBMPlexMono-Medium", size: size) }
 
 /// Kleine gesperrte Beschriftung wie ein graviertes Typenschild
 struct Label12: View {
@@ -60,7 +66,7 @@ struct Label12: View {
     var color: Color = .muted
     var size: CGFloat = 10.5
     var body: some View {
-        Text(text).font(labelFont(size)).tracking(2).foregroundStyle(color)
+        Text(text).font(labelFont(size)).tracking(0.8).foregroundStyle(color)
     }
 }
 
@@ -82,7 +88,7 @@ struct LabBackdrop: View {
                 while x < size.width { p.addRect(CGRect(x: x, y: 0, width: 0.5, height: size.height)); x += 24 }
                 var y: CGFloat = 0
                 while y < size.height { p.addRect(CGRect(x: 0, y: y, width: size.width, height: 0.5)); y += 24 }
-                ctx.fill(p, with: .color(Color.line.opacity(0.55)))
+                ctx.fill(p, with: .color(Color.line.opacity(0.45)))
             }
         }
         .ignoresSafeArea()
@@ -110,7 +116,7 @@ struct LabFrame: ViewModifier {
         content
             .background(Color.panel)
             .overlay(Rectangle().stroke(Color.line2, lineWidth: 1))
-            .overlay(CornerMarks(len: 6).stroke(accent.opacity(0.9), lineWidth: 1.5))
+            .overlay(alignment: .topTrailing) { Rectangle().fill(accent).frame(width: 5, height: 5).padding(4) }
     }
 }
 
@@ -155,12 +161,12 @@ struct HangarButtonStyle: ButtonStyle {
     var filled = false
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(display(15, condensed: false)).tracking(2)
-            .foregroundStyle(color)
+            .font(mono(12, .semibold)).tracking(1)
+            .foregroundStyle(filled ? Color.bg : color)
             .multilineTextAlignment(.center)
-            .frame(maxWidth: .infinity, minHeight: 52)
+            .frame(maxWidth: .infinity, minHeight: 48)
             .padding(.horizontal, 6)
-            .background(color.opacity(filled ? 0.1 : 0).background(Color.panel))
+            .background(filled ? color : Color.panel)
             .overlay(Rectangle().stroke(filled ? color : Color.line2, lineWidth: 1))
             .opacity(configuration.isPressed ? 0.6 : 1)
     }
