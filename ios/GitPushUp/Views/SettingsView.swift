@@ -13,6 +13,8 @@ struct SettingsView: View {
     @State private var records: [String: String] = [:]
     @State private var recordInfo = ""
     @State private var confirmDelete = false
+    @State private var confirmEgg = false
+    @State private var creatureName = ""
 
     var body: some View {
         ScrollView {
@@ -25,6 +27,25 @@ struct SettingsView: View {
                     Text("EINSTELLUNGEN").font(mono(15, .bold)).tracking(2).foregroundStyle(Color.wire)
                     Spacer()
                     Color.clear.frame(width: 70, height: 1)
+                }
+
+                if let c = store.state.creature {
+                    let v = store.vitals()
+                    Block(title: "BRUTKASTEN", trailing: "#\(c.seed)") {
+                        Text("Geschlüpft am \(Date(timeIntervalSince1970: c.born / 1000).formatted(date: .numeric, time: .omitted)), Tag \(v.ageDays). Wachstum \(Int((v.g * 100).rounded())) %. Lange auf den Glaskasten drücken zeigt im Zeitraffer, wie es bei deiner jetzigen Pflege wächst.")
+                            .font(mono(12)).foregroundStyle(Color.muted).fixedSize(horizontal: false, vertical: true)
+                        field("NAME") {
+                            TextField(c.name, text: $creatureName)
+                                .submitLabel(.done)
+                                .onSubmit { store.renameCreature(creatureName) }
+                        }
+                        HStack(spacing: 10) {
+                            Button("NAME SPEICHERN") { store.renameCreature(creatureName) }
+                                .buttonStyle(HangarButtonStyle(color: .wire, filled: true))
+                            Button("NEUES EI") { confirmEgg = true }
+                                .buttonStyle(HangarButtonStyle(color: .danger))
+                        }
+                    }
                 }
 
                 Block(title: "BACKUP AUF GITHUB") {
@@ -102,11 +123,16 @@ struct SettingsView: View {
         }
         .scrollDismissesKeyboard(.interactively)
         .background(LabBackdrop())
+        .confirmationDialog("Neues Ei legen? Das jetzige Wesen verschwindet, das neue wächst von vorn. Dein Trainingsverlauf bleibt.", isPresented: $confirmEgg, titleVisibility: .visible) {
+            Button("Neues Ei legen", role: .destructive) { store.layNewEgg(); creatureName = store.state.creature?.name ?? "" }
+            Button("Abbrechen", role: .cancel) {}
+        }
         .confirmationDialog(deleteText, isPresented: $confirmDelete, titleVisibility: .visible) {
             Button("Löschen", role: .destructive) { store.deleteLast() }
             Button("Abbrechen", role: .cancel) {}
         }
         .onAppear {
+            creatureName = store.state.creature?.name ?? ""
             repo = store.state.backupRepo
             status = statusText
             for m in Marker.all { if let v = store.state.trainer.baseline?[m.id] { records[m.id] = "\(v)" } }

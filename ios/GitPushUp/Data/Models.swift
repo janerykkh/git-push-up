@@ -73,6 +73,16 @@ struct ProteinEntry: Codable, Identifiable, Equatable {
     var label: String?
 }
 
+/// Das Wesen im Glaskasten: Samen (bestimmt Aussehen und Anlagen), Schlupfzeit und Name.
+/// Wie es heute aussieht, wird jedes Mal aus dem Protokoll berechnet, nichts davon wird gespeichert.
+struct CreatureState: Codable, Equatable {
+    var seed: Int
+    var born: Millis
+    var name: String
+    /// Wann du es bewusst geändert hast (neues Ei, Umbenennen). Automatisch gelegte Eier haben 0.
+    var updated: Millis? = nil
+}
+
 /// Alles, was lokal gespeichert wird (eine JSON-Datei im App-Ordner, nirgends sonst)
 struct PersistedState: Codable {
     var log: [LogEntry] = []
@@ -88,6 +98,7 @@ struct PersistedState: Codable {
     /// Persönlicher Faktor pro Muskel: wie schnell er bei dir im Verhältnis ermüdet (lernt aus deinen Ergebnissen)
     var muscleScale: [String: Double] = [:]
     var protein: [ProteinEntry] = []
+    var creature: CreatureState?
 }
 
 /// Format der backup.json im privaten Repo (gleich wie bei der Web-App)
@@ -98,6 +109,7 @@ struct BackupFile: Codable {
     var deleted: [String]?
     var trainer: TrainerState?
     var protein: [ProteinEntry]?
+    var creature: CreatureState?
 }
 
 // Fehlende Felder (ältere Backups, neue Versionen) einfach mit Standardwerten füllen statt abzubrechen
@@ -127,5 +139,6 @@ extension PersistedState {
         pulse = try c.decodeIfPresent([PulseReading].self, forKey: .pulse) ?? []
         muscleScale = try c.decodeIfPresent([String: Double].self, forKey: .muscleScale) ?? [:]
         protein = try c.decodeIfPresent([ProteinEntry].self, forKey: .protein) ?? []
+        creature = try c.decodeIfPresent(CreatureState.self, forKey: .creature)
     }
 }

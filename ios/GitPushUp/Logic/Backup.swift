@@ -69,6 +69,16 @@ extension Store {
         var pmap: [String: ProteinEntry] = [:]
         for e in state.protein + (remote.protein ?? []) where !del.contains(e.id) { pmap[e.id] = e }
         state.protein = pmap.values.sorted { $0.ts < $1.ts }
+        // Wesen: eine bewusste Änderung (neues Ei, Name) gewinnt; sonst das ältere Ei,
+        // damit nach einer Neuinstallation dasselbe Wesen zurückkommt
+        if let rc = remote.creature {
+            if let lc = state.creature {
+                let ru = rc.updated ?? 0, lu = lc.updated ?? 0
+                if ru > lu || (ru == lu && rc.born < lc.born) { state.creature = rc }
+            } else {
+                state.creature = rc
+            }
+        }
         // Trainer: eine echte Baseline schlägt immer eine leere; sonst gewinnt der neuere Stand
         if let t = remote.trainer {
             let remoteHas = t.baselineDate > 0, localHas = state.trainer.baselineDate > 0
@@ -83,7 +93,7 @@ extension Store {
         let remote = try await fetchRemote()
         if let f = remote.file { merge(f) }
         let iso = ISO8601DateFormatter().string(from: Date())
-        let payload = BackupFile(version: 3, exported: iso, entries: state.log, deleted: state.deleted, trainer: state.trainer, protein: state.protein)
+        let payload = BackupFile(version: 3, exported: iso, entries: state.log, deleted: state.deleted, trainer: state.trainer, protein: state.protein, creature: state.creature)
         let json = try JSONEncoder().encode(payload)
         var body: [String: String] = [
             "message": "Backup \(Date().formatted(date: .numeric, time: .omitted)): \(state.log.count) Einträge",

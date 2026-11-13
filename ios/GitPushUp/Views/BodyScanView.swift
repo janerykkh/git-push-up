@@ -2,7 +2,7 @@ import SwiftUI
 import UIKit
 
 /// Drehendes Wireframe-Körpermodell. Jede Muskelgruppe ist ein Ellipsoid aus Ringen;
-/// je erschöpfter, desto heller leuchtet sie grün. Antippen wählt einen Muskel.
+/// je erschöpfter, desto kräftiger wird sie orange. Antippen wählt einen Muskel.
 struct BodyScanView: View {
     let fatigue: [Muscle: Double]
     @Binding var selected: Muscle?
@@ -171,9 +171,9 @@ enum BodyModel {
         if r <= 0.02 { return (.wire, 0.34, 0) }
         let k = min(1, 0.3 + r)
         let c = Color(.sRGB,
-                      red: (121 + (180 - 121) * k) / 255,
-                      green: (230 + (255 - 230) * k) / 255,
-                      blue: (208 + (90 - 208) * k) / 255,
+                      red: (17 + (213 - 17) * k) / 255,
+                      green: (128 + (95 - 128) * k) / 255,
+                      blue: (111 + (40 - 111) * k) / 255,
                       opacity: 1)
         return (c, 0.45 + 0.5 * r, r)
     }

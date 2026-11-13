@@ -1,9 +1,9 @@
 import SwiftUI
 
-// BIO-LAB: geheimes Forschungslabor aus einem alten Science-Fiction-Film.
-// Dunkles Grün-Schwarz wie getöntes Glas, cremefarbene Beschriftung wie auf alten Instrumententafeln,
-// Serum-Türkis für Messgeräte, Bio-Lime für "aktiv", Bernstein für Warnlampen. Futura für Beschriftungen (60er-Jahre-Zukunft),
-// Monospace für Messwerte.
+// WEISSES LABOR: hell, sauber, ein bisschen Zukunft. Fast weiße Flächen mit leichtem Grünstich,
+// dunkle Tinte, drei klare Farben für die drei Pflegearten (Kraft Muskelrot, Dehnen Petrol, Geist Violett), GO in Signal-Orange.
+// Kein Leuchten, keine Scanlines: der Glaskasten mit dem Wesen ist der einzige Hingucker.
+// Die alten Farbnamen bleiben, damit alle Bildschirme automatisch mitziehen.
 
 extension Color {
     init(hex: UInt32, opacity: Double = 1) {
@@ -13,30 +13,31 @@ extension Color {
                   blue: Double(hex & 0xff) / 255,
                   opacity: opacity)
     }
-    static let bg = Color(hex: 0x050807)
-    static let panel = Color(hex: 0x0a110f)
-    static let line = Color(hex: 0x182420)
-    static let line2 = Color(hex: 0x2b3d35)
-    static let fg = Color(hex: 0xece6cf)
-    static let muted = Color(hex: 0x8a978c)
-    static let dim = Color(hex: 0x4a5a51)
-    static let wire = Color(hex: 0x79e6d0)
-    static let phos = Color(hex: 0xb4ff5a)
-    static let amber = Color(hex: 0xffae42)
-    static let danger = Color(hex: 0xff5470)
-    static let mind = Color(hex: 0xb49bff)
-    static let glassTop = Color(hex: 0x0f1d19)
+    static let bg = Color(hex: 0xf1f3f1)
+    static let panel = Color(hex: 0xfbfcfb)
+    static let line = Color(hex: 0xe1e6e3)
+    static let line2 = Color(hex: 0xc9d1cd)
+    static let fg = Color(hex: 0x1b2420)
+    static let muted = Color(hex: 0x5f6b66)
+    static let dim = Color(hex: 0x98a39e)
+    static let wire = Color(hex: 0x11806f)     // Petrol: Messgeräte, Dehnen
+    static let phos = Color(hex: 0x2f9a52)     // Grün: aktiv, geschafft
+    static let amber = Color(hex: 0xd9822b)    // Hinweis, Rekord
+    static let danger = Color(hex: 0xd63a4f)
+    static let mind = Color(hex: 0x6b52d6)     // Violett: Geist
+    static let force = Color(hex: 0xb7413a)    // Muskelrot: Kraft
+    static let glassTop = Color(hex: 0xe6ecea)
 }
 
 extension ExCategory {
     var color: Color {
         switch self {
-        case .beine: return Color(hex: 0xb4ff5a)
-        case .druecken: return Color(hex: 0xffae42)
-        case .ziehen: return Color(hex: 0x6fc3ff)
-        case .rumpf: return Color(hex: 0xe07cff)
-        case .dehnen: return Color(hex: 0xff9f7a)
-        case .geist: return Color(hex: 0xb49bff)
+        case .beine: return Color(hex: 0x4f9a2f)
+        case .druecken: return Color(hex: 0xd55f28)
+        case .ziehen: return Color(hex: 0x2f7fd0)
+        case .rumpf: return Color(hex: 0xa64ac9)
+        case .dehnen: return Color(hex: 0x11806f)
+        case .geist: return Color(hex: 0x6b52d6)
         }
     }
 }
@@ -65,21 +66,23 @@ struct Label12: View {
 
 extension View {
     func glow(_ c: Color, _ r: CGFloat = 8) -> some View {
-        shadow(color: c.opacity(0.55), radius: r)
+        // Im hellen Labor kein Leuchten mehr, nur ein Hauch Tiefe
+        shadow(color: c.opacity(0.0), radius: 0)
     }
 }
 
-/// Hintergrund: getöntes Glas mit feinen Bildschirmzeilen, wie ein alter Monitor im Labor
+/// Hintergrund: helles Laborpapier mit sehr feinem Raster
 struct LabBackdrop: View {
     var body: some View {
         ZStack {
             Color.bg
-            RadialGradient(colors: [Color.glassTop, Color.bg], center: .top, startRadius: 0, endRadius: 650)
             Canvas { ctx, size in
                 var p = Path()
+                var x: CGFloat = 0
+                while x < size.width { p.addRect(CGRect(x: x, y: 0, width: 0.5, height: size.height)); x += 24 }
                 var y: CGFloat = 0
-                while y < size.height { p.addRect(CGRect(x: 0, y: y, width: size.width, height: 1)); y += 3 }
-                ctx.fill(p, with: .color(.black.opacity(0.25)))
+                while y < size.height { p.addRect(CGRect(x: 0, y: y, width: size.width, height: 0.5)); y += 24 }
+                ctx.fill(p, with: .color(Color.line.opacity(0.55)))
             }
         }
         .ignoresSafeArea()
@@ -100,14 +103,14 @@ struct CornerMarks: Shape {
     }
 }
 
-/// Gerätegehäuse: dunkle Glasfläche, feiner Rahmen, Justiermarken in der Akzentfarbe
+/// Gerätegehäuse: helle Fläche, feiner Rahmen, kleine Justiermarken in der Akzentfarbe
 struct LabFrame: ViewModifier {
     var accent: Color = .wire
     func body(content: Content) -> some View {
         content
-            .background(Color.panel.opacity(0.85))
+            .background(Color.panel)
             .overlay(Rectangle().stroke(Color.line2, lineWidth: 1))
-            .overlay(CornerMarks().stroke(accent.opacity(0.8), lineWidth: 1.5))
+            .overlay(CornerMarks(len: 6).stroke(accent.opacity(0.9), lineWidth: 1.5))
     }
 }
 
@@ -141,7 +144,6 @@ struct SegMeter: View {
                 Rectangle()
                     .fill(i < lit ? color : Color.line)
                     .frame(height: height)
-                    .shadow(color: i < lit ? color.opacity(0.6) : .clear, radius: 3)
             }
         }
     }

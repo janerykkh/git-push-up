@@ -9,7 +9,7 @@ struct GitPushUpApp: App {
         WindowGroup {
             RootView()
                 .environmentObject(store)
-                .preferredColorScheme(.dark)
+                .preferredColorScheme(.light)
         }
     }
 }
@@ -25,9 +25,11 @@ struct RootView: View {
     @State private var showSettings = false
     @State private var showPulse = false
     @State private var done: DoneInfo? = nil
+    @State private var report: ReportReq? = nil
 
     struct DoneInfo: Equatable { let stamp: String; let text: String; let partly: Bool }
     struct ActivePick: Identifiable { let id = UUID(); let ex: Exercise; let boss: Bool }
+    struct ReportReq: Identifiable { let id = UUID(); let muscle: Muscle? }
 
     private func pickNext(excluding: String? = nil) -> ActivePick {
         let p = store.pick(excluding: excluding)
@@ -38,11 +40,11 @@ struct RootView: View {
         ZStack {
             HomeView(
                 onGo: { exercise = pickNext() },
-                onExercise: { exercise = ActivePick(ex: $0, boss: false) },
                 onManual: { showManual = true },
                 onRecord: { showRecord = true },
                 onSettings: { showSettings = true },
-                onPulse: { showPulse = true }
+                onPulse: { showPulse = true },
+                onReport: { report = ReportReq(muscle: $0) }
             )
             if let d = done {
                 DoneOverlay(stamp: d.stamp, text: d.text, partly: d.partly)
@@ -86,6 +88,17 @@ struct RootView: View {
             )
             .environmentObject(store)
             }
+        }
+        .fullScreenCover(item: $report) { r in
+            LabReportView(
+                onExercise: { ex in
+                    report = nil
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) { exercise = ActivePick(ex: ex, boss: false) }
+                },
+                onClose: { report = nil },
+                selected: r.muscle
+            )
+            .environmentObject(store)
         }
         .sheet(isPresented: $showManual) {
             ManualEntryView(onDone: { showManual = false })
