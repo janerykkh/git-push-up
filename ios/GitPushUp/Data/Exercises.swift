@@ -8,7 +8,7 @@
 import CoreGraphics
 
 enum Muscle: String, CaseIterable, Codable, Identifiable {
-    case chest, frontDelt, rearDelt, biceps, triceps, upperBack, lats, abs, obliques, lowerBack, glutes, quads, hamstrings, calves
+    case chest, frontDelt, rearDelt, biceps, triceps, upperBack, lats, abs, obliques, lowerBack, glutes, quads, hamstrings, calves, adductors
     var id: String { rawValue }
     var label: String {
         switch self {
@@ -26,6 +26,7 @@ enum Muscle: String, CaseIterable, Codable, Identifiable {
         case .quads: return "Oberschenkel vorne"
         case .hamstrings: return "Oberschenkel hinten"
         case .calves: return "Waden"
+        case .adductors: return "Adduktoren"
         }
     }
     /// Stunden, bis ein voll erschöpfter Muskel wieder fast frisch ist (unter 10 %)
@@ -45,18 +46,21 @@ enum Muscle: String, CaseIterable, Codable, Identifiable {
         case .quads: return 48
         case .hamstrings: return 48
         case .calves: return 30
+        case .adductors: return 48
         }
     }
 }
 
 enum ExCategory: String, CaseIterable, Codable {
-    case beine, druecken, ziehen, rumpf
+    case beine, druecken, ziehen, rumpf, dehnen, geist
     var label: String {
         switch self {
         case .beine: return "Beine"
         case .druecken: return "Drücken"
         case .ziehen: return "Ziehen"
         case .rumpf: return "Rumpf"
+        case .dehnen: return "Dehnen"
+        case .geist: return "Geist"
         }
     }
 }
@@ -114,6 +118,8 @@ struct Exercise: Identifiable {
     let b: [CGPoint]
     /// Hilfslinien (Tisch, Türrahmen) als x1, y1, x2, y2
     var prop: [[CGFloat]] = []
+    /// Dehnübungen: welche Muskeln sie entlasten (zählt nicht als Erschöpfung)
+    var relieves: [Muscle] = []
 
     func weight(_ m: Muscle) -> Double { muscles[m] ?? 0 }
     /// Die Muskeln mit dem höchsten Anteil an dieser Übung
@@ -137,7 +143,7 @@ extension Exercise {
                  factor: 1,
                  cap: 30,
                  cue: "Füße schulterbreit, Po nach hinten, Knie über die Zehen. Unten kurz halten.",
-                 muscles: [.quads: 1, .glutes: 0.6, .hamstrings: 0.2, .lowerBack: 0.25, .calves: 0.2, .abs: 0.2],
+                 muscles: [.quads: 1, .glutes: 0.6, .adductors: 0.5, .hamstrings: 0.2, .lowerBack: 0.25, .calves: 0.2, .abs: 0.2],
                  a: pose([[120, 28], [120, 44], [120, 95], [121, 122], [121, 150], [119, 122], [119, 150], [136, 56], [156, 56], [134, 58], [154, 58]]),
                  b: pose([[124, 60], [118, 74], [100, 116], [132, 120], [124, 150], [130, 121], [122, 150], [136, 80], [158, 80], [134, 82], [156, 82]])),
         Exercise(id: "lunge",
@@ -151,7 +157,7 @@ extension Exercise {
                  factor: 0.5,
                  cap: 15,
                  cue: "Ein Bein weit nach hinten setzen, hinteres Knie fast zum Boden. Oberkörper aufrecht.",
-                 muscles: [.quads: 1, .glutes: 0.8, .hamstrings: 0.3, .calves: 0.25, .obliques: 0.2],
+                 muscles: [.quads: 1, .glutes: 0.8, .adductors: 0.6, .hamstrings: 0.3, .calves: 0.25, .obliques: 0.2],
                  a: pose([[120, 28], [120, 44], [120, 95], [121, 122], [121, 150], [119, 122], [119, 150], [121, 70], [121, 94], [119, 70], [119, 94]]),
                  b: pose([[116, 50], [116, 66], [114, 114], [138, 118], [140, 150], [96, 142], [74, 150], [118, 90], [120, 112], [114, 90], [112, 112]])),
         Exercise(id: "bridge",
@@ -321,6 +327,65 @@ extension Exercise {
                  muscles: [.abs: 1, .obliques: 0.4, .quads: 0.15],
                  a: pose([[42, 140], [58, 143], [114, 146], [114, 114], [144, 114], [116, 114], [146, 114], [60, 120], [60, 96], [62, 120], [62, 96]]),
                  b: pose([[42, 140], [58, 143], [114, 146], [114, 114], [144, 114], [146, 138], [180, 140], [60, 120], [60, 96], [40, 134], [18, 138]])),
+
+        // ---------- Dehnen: nur Hüfte, Beine, Rücken. Bewusst keine Schulterdehnungen (instabile Schulter). ----------
+        Exercise(id: "hipflexor", name: "Hüftbeuger-Dehnung", cat: .dehnen, unit: .sec, base: 30, step: 0, side: true,
+                 cue: "Kniestand, ein Fuß vorne. Becken nach vorne schieben, Po anspannen, Oberkörper aufrecht. Spüren: vorne an der Hüfte des hinteren Beins, nicht im unteren Rücken.",
+                 muscles: [:],
+                 a: pose([[120,46],[120,62],[118,108],[146,112],[148,150],[100,148],[70,150],[130,86],[144,104],[128,88],[142,106]]),
+                 b: pose([[124,50],[124,66],[126,114],[148,114],[148,150],[104,148],[72,150],[134,90],[146,106],[132,92],[144,108]]),
+                 relieves: [.quads]),
+        Exercise(id: "hamstretch", name: "Oberschenkel-Rückseite", cat: .dehnen, unit: .sec, base: 30, step: 0,
+                 cue: "Im Stehen, Knie ganz leicht gebeugt. Mit geradem Rücken aus der Hüfte nach vorne lehnen. Spüren: hinten am Oberschenkel, nicht in der Kniekehle.",
+                 muscles: [:],
+                 a: pose([[120,28],[120,44],[120,95],[121,122],[121,150],[119,122],[119,150],[121,70],[121,94],[119,70],[119,94]]),
+                 b: pose([[158,104],[146,96],[118,96],[121,122],[121,150],[119,122],[119,150],[146,120],[140,142],[144,120],[138,142]]),
+                 relieves: [.hamstrings, .lowerBack]),
+        Exercise(id: "butterfly", name: "Schmetterling", cat: .dehnen, unit: .sec, base: 40, step: 0,
+                 cue: "Im Sitzen Fußsohlen aneinander, Fersen nah zum Körper. Knie locker sinken lassen, mit geradem Rücken leicht nach vorne lehnen. Spüren: Innenseite der Oberschenkel.",
+                 muscles: [:],
+                 a: pose([[110,80],[110,96],[110,146],[140,128],[130,148],[138,132],[128,148],[118,120],[128,142],[116,122],[126,144]]),
+                 b: pose([[128,90],[122,104],[110,146],[142,138],[130,148],[140,140],[128,148],[128,124],[130,144],[126,126],[128,146]]),
+                 relieves: [.adductors, .glutes]),
+        Exercise(id: "figure4", name: "Liegende Po-Dehnung", cat: .dehnen, unit: .sec, base: 30, step: 0, side: true,
+                 cue: "Rückenlage, einen Knöchel auf das andere Knie legen. Das untere Bein mit beiden Händen zur Brust ziehen. Spüren: im Po des oberen Beins.",
+                 muscles: [:],
+                 a: pose([[40,138],[56,142],[110,146],[130,118],[150,146],[122,112],[150,118],[78,128],[100,132],[78,128],[100,132]]),
+                 b: pose([[40,138],[56,142],[110,146],[108,104],[130,96],[100,98],[128,108],[80,118],[104,106],[80,118],[104,106]]),
+                 relieves: [.glutes, .hamstrings]),
+        Exercise(id: "catcow", name: "Katze-Kuh", cat: .dehnen, unit: .reps, base: 8, step: 0,
+                 cue: "Vierfüßlerstand. Einatmen: Bauch sinken lassen, Blick leicht nach oben. Ausatmen: Rücken rund machen, Kinn zur Brust. Langsam im Atemrhythmus.",
+                 muscles: [:],
+                 a: pose([[162,92],[146,104],[84,104],[84,148],[52,150],[86,148],[54,150],[146,127],[146,150],[148,127],[148,150]]),
+                 b: pose([[158,120],[146,98],[84,98],[84,148],[52,150],[86,148],[54,150],[146,124],[146,150],[148,124],[148,150]]),
+                 relieves: [.lowerBack, .upperBack]),
+        Exercise(id: "calfstretch", name: "Waden-Dehnung", cat: .dehnen, unit: .sec, base: 30, step: 0, side: true,
+                 cue: "Hände an die Wand, ein Bein weit nach hinten, Ferse bleibt am Boden, Bein gestreckt. Hüfte Richtung Wand schieben. Spüren: in der Wade des hinteren Beins.",
+                 muscles: [:],
+                 a: pose([[158,38],[150,52],[130,95],[156,120],[164,150],[112,122],[96,150],[168,64],[188,60],[168,66],[188,62]]),
+                 b: pose([[166,42],[158,56],[136,98],[162,122],[164,150],[116,124],[96,150],[174,68],[188,62],[174,70],[188,64]]),
+                 prop: [[190, 10, 190, 150]],
+                 relieves: [.calves]),
+
+        // ---------- Geist ----------
+        Exercise(id: "meditation", name: "Meditation", cat: .geist, unit: .sec, base: 300, step: 0,
+                 cue: "Fünf Minuten sitzen. Aufrecht, Augen zu, beobachten.",
+                 muscles: [:],
+                 a: pose([[120,80],[120,96],[120,146],[100,146],[128,148],[140,146],[112,148],[108,120],[104,138],[132,120],[136,138]]),
+                 b: pose([[120,78],[120,94],[120,146],[100,146],[128,148],[140,146],[112,148],[108,119],[104,138],[132,119],[136,138]])),
     ]
     static let byId: [String: Exercise] = Dictionary(uniqueKeysWithValues: all.map { ($0.id, $0) })
+}
+
+
+enum ActivityKind { case strength, stretch, mind }
+
+extension Exercise {
+    var kind: ActivityKind {
+        switch cat {
+        case .dehnen: return .stretch
+        case .geist: return .mind
+        default: return .strength
+        }
+    }
 }

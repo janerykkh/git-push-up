@@ -21,7 +21,6 @@ struct RootView: View {
 
     @State private var exercise: ActivePick? = nil
     @State private var showManual = false
-    @State private var showProtein = false
     @State private var showRecord = false
     @State private var showSettings = false
     @State private var showPulse = false
@@ -41,7 +40,6 @@ struct RootView: View {
                 onGo: { exercise = pickNext() },
                 onExercise: { exercise = ActivePick(ex: $0, boss: false) },
                 onManual: { showManual = true },
-                onProtein: { showProtein = true },
                 onRecord: { showRecord = true },
                 onSettings: { showSettings = true },
                 onPulse: { showPulse = true }
@@ -55,6 +53,17 @@ struct RootView: View {
         }
         .fullScreenCover(item: $exercise) { pick in
             let ex = pick.ex
+            if ex.kind == .mind {
+                MeditationView(
+                    onFinish: { secs, complete in
+                        store.logResult(ex, target: 300, actual: secs, done: complete)
+                        exercise = nil
+                        flash("NEURO-SYNC", "\(secs / 60) Minuten Meditation", partly: !complete)
+                    },
+                    onSkip: { exercise = pickNext(excluding: ex.id) },
+                    onClose: { exercise = nil }
+                )
+            } else {
             ExerciseView(
                 ex: ex,
                 boss: pick.boss,
@@ -67,7 +76,7 @@ struct RootView: View {
                         let record = store.checkBossRecord(ex, actual: actual)
                         flash(record ? "NEUER REKORD" : "BOSS BESIEGT", "\(actual)\(u) \(ex.name)\(side)", partly: false)
                     } else {
-                        flash(ok ? "INSTALLED" : "LOGGED",
+                        flash(ok ? (ex.kind == .stretch ? "GEWEBE GELÖST" : "PROBE ERFASST") : "TEILPROBE",
                               ok ? "\(target)\(u) \(ex.name)\(side)" : "\(actual) von \(target)\(u) \(ex.name)",
                               partly: !ok)
                     }
@@ -76,10 +85,7 @@ struct RootView: View {
                 onClose: { exercise = nil }
             )
             .environmentObject(store)
-        }
-        .sheet(isPresented: $showProtein) {
-            ProteinView(onClose: { showProtein = false })
-                .environmentObject(store)
+            }
         }
         .sheet(isPresented: $showManual) {
             ManualEntryView(onDone: { showManual = false })
@@ -90,7 +96,7 @@ struct RootView: View {
                 onClose: { showRecord = false },
                 onFinished: {
                     showRecord = false
-                    flash("BASELINE", "Ziele neu berechnet. Nächster Rekordtag in 4 Wochen.", partly: false)
+                    flash("KALIBRIERT", "Ziele neu berechnet. Nächster Rekordtag in 4 Wochen.", partly: false)
                 }
             )
             .environmentObject(store)

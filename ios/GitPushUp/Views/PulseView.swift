@@ -63,7 +63,7 @@ struct PulseView: View {
             }
             .padding(.horizontal, 16).padding(.vertical, 12)
         }
-        .background(Color.bg.ignoresSafeArea())
+        .background(LabBackdrop())
         .onAppear {
             UIApplication.shared.isIdleTimerDisabled = true
             trigger.onTrigger = { at in mark(at) }

@@ -40,7 +40,7 @@ extension Store {
     func weeklyReview() {
         let now = nowMs()
         var changed = false
-        for ex in pool {
+        for ex in strengthPool {
             guard var st = state.trainer.targets[ex.id] else {
                 state.trainer.targets[ex.id] = TargetState(t: targetFor(ex), reviewed: now, change: 0)
                 changed = true
@@ -203,7 +203,7 @@ extension Store {
     /// nur wenn die Muskelgruppe in der Woche hinterherhinkt oder lange keinen Boss-Satz hatte,
     /// und nicht bei Übungen, die du schon so oft schaffst, dass es nur noch Ausdauer ist.
     func shouldBoss(_ ex: Exercise, fatigue f: [Muscle: Double]) -> Bool {
-        guard hasBaseline, !bossToday else { return false }
+        guard ex.kind == .strength, hasBaseline, !bossToday else { return false }
         let mx = estMax(ex)
         if ex.unit == .reps && mx > 40 { return false }
         if ex.unit == .sec && mx > 120 { return false }
@@ -248,6 +248,7 @@ extension Store {
             sum += w * (1 - v); wsum += w
             if prim.contains(m) && v >= 0.8 { pen += 0.6 }
         }
+        guard wsum > 0 else { return 0 }
         var s = sum / wsum - pen
         if ex.cat.rawValue == state.lastCat { s -= 0.1 }
         let h = hoursSince(ex.id)
@@ -256,11 +257,11 @@ extension Store {
         return s
     }
 
-    func pick(excluding: String? = nil) -> (ex: Exercise, boss: Bool) {
+    func pickStrength(excluding: String? = nil) -> (ex: Exercise, boss: Bool) {
         let f = fatigue()
         let skip = excluding ?? state.lastEx
-        var ranked = pool.filter { $0.id != skip }.map { ($0, score($0, f)) }.sorted { $0.1 > $1.1 }
-        if ranked.isEmpty { ranked = pool.map { ($0, 0.0) } }
+        var ranked = strengthPool.filter { $0.id != skip }.map { ($0, score($0, f)) }.sorted { $0.1 > $1.1 }
+        if ranked.isEmpty { ranked = strengthPool.map { ($0, 0.0) } }
         guard let best = ranked.first else { return (Exercise.all[0], false) }
         // Kandidat für einen Boss-Satz unter den guten Optionen? Dann den nehmen.
         let good = ranked.filter { $0.1 >= best.1 - 0.2 }
@@ -270,13 +271,17 @@ extension Store {
     }
 
     func why(_ ex: Exercise) -> String {
+        if ex.kind == .stretch {
+            let r = ex.relieves.map { $0.label }.joined(separator: " + ")
+            return r.isEmpty ? "LABOR: Beweglichkeit." : "LABOR: entlastet \(r)."
+        }
         let f = fatigue()
         let main = ex.primary
         let tired = main.filter { (f[$0] ?? 0) >= 0.8 }.map { $0.label }
         let fresh = main.filter { (f[$0] ?? 0) < 0.3 }.map { $0.label }
-        if !tired.isEmpty { return "TRAINER: \(tired.joined(separator: ", ")) noch erschöpft, mach es locker." }
-        if !fresh.isEmpty { return "TRAINER: \(fresh.joined(separator: " + ")) \(fresh.count > 1 ? "sind" : "ist") frisch." }
-        return "TRAINER: gute Verteilung für jetzt."
+        if !tired.isEmpty { return "LABOR: \(tired.joined(separator: ", ")) noch erschöpft, mach es locker." }
+        if !fresh.isEmpty { return "LABOR: \(fresh.joined(separator: " + ")) \(fresh.count > 1 ? "sind" : "ist") frisch." }
+        return "LABOR: gute Verteilung für jetzt."
     }
 
     func best(for m: Muscle) -> Exercise? {

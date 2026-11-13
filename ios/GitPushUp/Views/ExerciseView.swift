@@ -36,7 +36,7 @@ struct ExerciseView: View {
                     .accessibilityLabel("Zurück")
                 }
 
-                Text(ex.name.uppercased()).font(mono(28, .bold)).foregroundStyle(Color.fg)
+                Text(ex.name.uppercased()).font(display(36)).tracking(1.5).foregroundStyle(Color.fg)
 
                 if boss {
                     VStack(alignment: .leading, spacing: 6) {
@@ -90,7 +90,7 @@ struct ExerciseView: View {
                     }
                 } else {
                     HStack(spacing: 10) {
-                        Button(boss ? "GENAU \(target)" : "GESCHAFFT") { onFinish(true, target, target) }
+                        Button(boss ? "GENAU \(target)" : (ex.kind == .stretch ? "FERTIG" : "GESCHAFFT")) { onFinish(true, target, target) }
                             .buttonStyle(HangarButtonStyle(color: .phos, filled: true))
                         Button(boss ? "ANDERE ZAHL" : "NICHT GESCHAFFT") {
                             stopTimer()
@@ -109,7 +109,7 @@ struct ExerciseView: View {
             .padding(.horizontal, 16).padding(.vertical, 12)
         }
         .scrollDismissesKeyboard(.interactively)
-        .background(Color.bg.ignoresSafeArea())
+        .background(LabBackdrop())
     }
 
     private var timerRow: some View {
@@ -143,14 +143,14 @@ struct DoneOverlay: View {
     var body: some View {
         let c: Color = partly ? .amber : .phos
         VStack(spacing: 16) {
-            Text(stamp).font(mono(26, .heavy)).tracking(7).foregroundStyle(c).glow(c, 12)
+            Text(stamp).font(display(30)).tracking(6).foregroundStyle(c).glow(c, 12)
                 .padding(.vertical, 16).padding(.horizontal, 22)
                 .overlay(Rectangle().stroke(c, lineWidth: 1))
                 .scaleEffect(shown ? 1 : 0.85).opacity(shown ? 1 : 0)
             Text(text).font(mono(14)).foregroundStyle(Color.muted).multilineTextAlignment(.center).padding(.horizontal, 24)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color.bg.ignoresSafeArea())
+        .background(LabBackdrop())
         .onAppear { withAnimation(.easeOut(duration: 0.3)) { shown = true } }
     }
 }

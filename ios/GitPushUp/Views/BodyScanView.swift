@@ -75,6 +75,7 @@ enum BodyModel {
             (.quads, 13, 233, 6, 12, 37, 10, true),
             (.hamstrings, 13, 244, -6, 11, 31, 9, true),
             (.calves, 13, 302, -6, 9, 25, 8, true),
+            (.adductors, 6, 224, 1, 6, 27, 7, true),
         ]
         var out: [Part] = []
         for p in raw {
@@ -170,9 +171,9 @@ enum BodyModel {
         if r <= 0.02 { return (.wire, 0.34, 0) }
         let k = min(1, 0.3 + r)
         let c = Color(.sRGB,
-                      red: (168 + (126 - 168) * k) / 255,
-                      green: (221 + (240 - 221) * k) / 255,
-                      blue: (230 + (166 - 230) * k) / 255,
+                      red: (121 + (180 - 121) * k) / 255,
+                      green: (230 + (255 - 230) * k) / 255,
+                      blue: (208 + (90 - 208) * k) / 255,
                       opacity: 1)
         return (c, 0.45 + 0.5 * r, r)
     }

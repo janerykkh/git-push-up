@@ -101,7 +101,7 @@ struct SettingsView: View {
             .padding(.horizontal, 16).padding(.vertical, 12)
         }
         .scrollDismissesKeyboard(.interactively)
-        .background(Color.bg.ignoresSafeArea())
+        .background(LabBackdrop())
         .confirmationDialog(deleteText, isPresented: $confirmDelete, titleVisibility: .visible) {
             Button("Löschen", role: .destructive) { store.deleteLast() }
             Button("Abbrechen", role: .cancel) {}

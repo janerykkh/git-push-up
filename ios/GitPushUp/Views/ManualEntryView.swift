@@ -93,7 +93,7 @@ struct ManualEntryView: View {
             .padding(.horizontal, 16).padding(.vertical, 12)
         }
         .scrollDismissesKeyboard(.interactively)
-        .background(Color.bg.ignoresSafeArea())
+        .background(LabBackdrop())
         .presentationBackground(Color.bg)
     }
 }

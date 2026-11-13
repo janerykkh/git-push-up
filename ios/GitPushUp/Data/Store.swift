@@ -44,6 +44,8 @@ final class Store: ObservableObject {
 
     // MARK: Übungen
 
+    var strengthPool: [Exercise] { pool.filter { $0.kind == .strength } }
+
     var pool: [Exercise] {
         Exercise.all.filter { !$0.retired && ($0.equipment == nil || state.equipOn[$0.equipment!] == true) }
     }

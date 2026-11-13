@@ -54,7 +54,7 @@ struct RecordView: View {
                 withAnimation { proxy.scrollTo("test", anchor: .top) }
             }
         }
-        .background(Color.bg.ignoresSafeArea())
+        .background(LabBackdrop())
         .onAppear {
             if selected == nil && store.state.trainer.pending.isEmpty { open(Marker.all[0].id) }
         }

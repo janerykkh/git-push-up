@@ -15,7 +15,7 @@ struct StickFigure: View {
         }
         .aspectRatio(240 / 165, contentMode: .fit)
         .background(
-            RadialGradient(colors: [Color(hex: 0x0b161c), .bg], center: .init(x: 0.5, y: 0.6), startRadius: 0, endRadius: 260)
+            RadialGradient(colors: [Color.glassTop, .bg], center: .init(x: 0.5, y: 0.6), startRadius: 0, endRadius: 260)
         )
         .overlay(RoundedRectangle(cornerRadius: 4).stroke(Color.line, lineWidth: 1))
         .clipShape(RoundedRectangle(cornerRadius: 4))
