@@ -76,32 +76,33 @@ extension Store {
         return scored.max { $0.1 < $1.1 }?.0 ?? Exercise.all[0]
     }
 
-    // MARK: Biomarker für das Labor-Display
+    // MARK: Biomarker für die Laborakte
 
+    /// Wochenwerte mit echten Einheiten und festen Zielen; Erholung ist ein Zustand (0…1)
     struct Biomarkers {
-        var vitality: Double      // Kraft-Belastung der Woche
-        var regeneration: Double  // wie erholt die Muskeln gerade sind
-        var flex: Double          // Dehneinheiten der Woche (Ziel 7)
-        var neuro: Double         // Meditationsminuten der Woche (Ziel 35)
-        var continuity: Double    // Serie (Ziel 7 Tage)
-        var neuroMinutes: Int
+        static let strengthTarget = 15
+        static let stretchTarget = 7
+        static let mindTarget = 35
+        static let daysTarget = 7
+        var strengthSets: Int
         var stretchCount: Int
+        var neuroMinutes: Int
+        var activeDays: Int
+        var regeneration: Double
     }
 
     func biomarkers() -> Biomarkers {
         let since = nowMs() - 7 * dayMs
         let recent = state.log.filter { $0.ts >= since }
         let ms = Muscle.allCases
-        let week = weeklyLoad()
-        let vit = ms.reduce(0.0) { $0 + min(1, week[$1] ?? 0) } / Double(ms.count)
         let f = fatigue()
         let reg = 1 - ms.reduce(0.0) { $0 + min(1, f[$1] ?? 0) } / Double(ms.count)
-        let stretches = recent.filter { $0.exercise?.kind == .stretch }.count
-        let medSec = recent.filter { $0.exercise?.kind == .mind }.reduce(0) { $0 + $1.actual }
-        return Biomarkers(vitality: vit, regeneration: reg,
-                          flex: min(1, Double(stretches) / 7),
-                          neuro: min(1, Double(medSec) / (35 * 60)),
-                          continuity: min(1, Double(streak) / 7),
-                          neuroMinutes: medSec / 60, stretchCount: stretches)
+        return Biomarkers(
+            strengthSets: recent.filter { $0.exercise?.kind == .strength }.count,
+            stretchCount: recent.filter { $0.exercise?.kind == .stretch }.count,
+            neuroMinutes: recent.filter { $0.exercise?.kind == .mind }.reduce(0) { $0 + $1.actual } / 60,
+            activeDays: Set(recent.map { startOfDay($0.ts) }).count,
+            regeneration: reg
+        )
     }
 }

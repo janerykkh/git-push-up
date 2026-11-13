@@ -8,17 +8,15 @@ struct StickFigure: View {
     @State private var start = Date()
 
     var body: some View {
-        TimelineView(.animation) { tl in
+        TimelineView(.animation(minimumInterval: 1 / 15)) { tl in
             Canvas { ctx, size in
                 draw(&ctx, size: size, t: tl.date.timeIntervalSince(start))
             }
         }
         .aspectRatio(240 / 165, contentMode: .fit)
-        .background(
-            RadialGradient(colors: [Color.glassTop, .bg], center: .init(x: 0.5, y: 0.6), startRadius: 0, endRadius: 260)
-        )
-        .overlay(RoundedRectangle(cornerRadius: 4).stroke(Color.line, lineWidth: 1))
-        .clipShape(RoundedRectangle(cornerRadius: 4))
+        .background(Color.panel)
+        .overlay(PixelFrame().fill(Color.line))
+        .clipShape(Rectangle())
         .onAppear { start = Date() }
     }
 
@@ -37,40 +35,39 @@ struct StickFigure: View {
         func pt(_ x: CGFloat, _ y: CGFloat) -> CGPoint { CGPoint(x: x * s, y: y * s) }
         let color = ex.cat.color
 
-        // Boden mit Perspektiv-Linien
-        var floor = Path()
+        // Boden mit Perspektiv-Linien, alles auf dem Pixelraster
+        var floor = PixelPath()
         var x: CGFloat = 10
         while x <= 230 { floor.move(to: pt(x, 152)); floor.addLine(to: pt(120 + (x - 120) * 1.6, 165)); x += 20 }
-        ctx.stroke(floor, with: .color(.line), lineWidth: 1)
-        var base = Path(); base.move(to: pt(6, 152)); base.addLine(to: pt(234, 152))
-        ctx.stroke(base, with: .color(.line2), lineWidth: 1)
+        ctx.pixelStroke(floor, .line)
+        var base = PixelPath(); base.move(to: pt(6, 152)); base.addLine(to: pt(234, 152))
+        ctx.pixelStroke(base, .line2)
 
         // Hilfsmittel (Tisch, Türrahmen)
-        for l in ex.prop where l.count == 4 {
-            var p = Path(); p.move(to: pt(l[0], l[1])); p.addLine(to: pt(l[2], l[3]))
-            ctx.stroke(p, with: .color(Color.wire.opacity(0.35)), style: StrokeStyle(lineWidth: 3 * s, lineCap: .round))
-        }
+        var props = PixelPath()
+        for l in ex.prop where l.count == 4 { props.move(to: pt(l[0], l[1])); props.addLine(to: pt(l[2], l[3])) }
+        ctx.pixelStroke(props, Color.wire.opacity(0.45), size: PX * 2)
 
         let k = CGFloat(phase(t))
         let P: [CGPoint] = zip(ex.a, ex.b).map { a, b in
             CGPoint(x: (a.x + (b.x - a.x) * k) * s, y: (a.y + (b.y - a.y) * k) * s)
         }
         guard P.count == 11 else { return }
-        var body = Path()
+        var body = PixelPath()
         for (a, b) in Self.limbs { body.move(to: P[a]); body.addLine(to: P[b]) }
 
-        // Kopf: entlang der Linie Hals → Kopf versetzt, damit er wie ein Kopf auf dem Hals sitzt
+        // Kopf: entlang der Linie Hals → Kopf versetzt, damit er auf dem Hals sitzt; als Pixelring
         let n = P[1], h = P[0]
         let dx = h.x - n.x, dy = h.y - n.y, d = max(0.001, hypot(dx, dy))
         let hc = CGPoint(x: n.x + dx / d * 11 * s, y: n.y + dy / d * 11 * s)
-        let head = Path(ellipseIn: CGRect(x: hc.x - 9 * s, y: hc.y - 9 * s, width: 18 * s, height: 18 * s))
-
-        // Leuchten: breiter, durchsichtiger Strich unter dem eigentlichen
-        let glow = StrokeStyle(lineWidth: 9 * s, lineCap: .round, lineJoin: .round)
-        ctx.stroke(body, with: .color(color.opacity(0.18)), style: glow)
-        ctx.stroke(head, with: .color(color.opacity(0.18)), lineWidth: 8 * s)
-        ctx.stroke(body, with: .color(color), style: StrokeStyle(lineWidth: 4 * s, lineCap: .round, lineJoin: .round))
-        ctx.fill(head, with: .color(.bg))
-        ctx.stroke(head, with: .color(color), lineWidth: 3 * s)
+        var head = PixelPath()
+        let r = 9 * s
+        for i in 0...24 {
+            let a = Double(i) / 24 * 2 * .pi
+            let p = CGPoint(x: hc.x + CGFloat(cos(a)) * r, y: hc.y + CGFloat(sin(a)) * r)
+            if i == 0 { head.move(to: p) } else { head.addLine(to: p) }
+        }
+        ctx.pixelStroke(body, color, size: PX * 2)
+        ctx.pixelStroke(head, color, size: PX * 2)
     }
 }

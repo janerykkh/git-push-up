@@ -17,7 +17,7 @@ struct HomeView: View {
     @State private var newName = ""
 
     var body: some View {
-        TimelineView(.periodic(from: .now, by: 60)) { _ in
+        TimelineView(.periodic(from: .now, by: 10)) { _ in
             let v = store.vitals()
             let creature = store.state.creature
             GeometryReader { geo in
@@ -98,16 +98,16 @@ struct HomeView: View {
             VStack(alignment: .leading, spacing: 0) {
                 HStack(spacing: 4) {
                     Text("SPECIMEN //").foregroundStyle(Color.muted)
-                    Rectangle().fill(v.health >= 0.15 ? Color.signal : Color.dim).frame(width: 5, height: 5)
+                    Rectangle().fill(v.health >= 0.15 ? Color.signal : Color.dim).frame(width: PX * 3, height: PX * 3)
                     Text(v.healthLabel)
                 }
-                .font(mono(8.5, .medium))
+                .font(labelFont(9)).tracking(0.8)
                 Button {
                     newName = c?.name ?? ""
                     renaming = true
                 } label: {
                     Text((c?.name ?? "—").uppercased())
-                        .font(display(36)).foregroundStyle(Color.fg)
+                        .font(display(38)).tracking(0.5).foregroundStyle(Color.fg)
                         .lineLimit(1).minimumScaleFactor(0.5)
                 }
                 .buttonStyle(.plain)
@@ -119,83 +119,83 @@ struct HomeView: View {
                 Text("TAG \(String(format: "%03d", v.ageDays))")
                 HStack(spacing: 4) {
                     Text("STUFE \(String(format: "%02d", v.stageIndex))/05").foregroundStyle(Color.muted)
-                    Text(v.stage).font(mono(9, .semibold))
+                    Text(v.stage).font(mono(10, .bold))
                 }
             }
-            .font(mono(9))
+            .font(mono(10))
             .padding(.bottom, 4)
         }
         .padding(.bottom, 4)
-        .overlay(alignment: .bottom) { Rectangle().fill(Color.line2).frame(height: 1) }
+        .overlay(alignment: .bottom) { Rectangle().fill(Color.line2).frame(height: PX) }
     }
 
     private func statCells(_ v: CreatureVitals) -> some View {
-        let today = store.carePoints(days: 1).last.flatMap { $0 } ?? 0
-        let dots = Int(today.rounded(.down))
-        return HStack(spacing: 6) {
+        HStack(spacing: 6) {
             cell("SERIE", String(format: "%02d", min(99, store.streak))) {
-                Text("TAGE AM STÜCK").font(mono(8)).foregroundStyle(Color.muted)
+                Text(v.streakBonus > 0 ? "BONUS +\(Int((v.streakBonus * 100).rounded())) %" : "TAGE AM STÜCK")
+                    .font(mono(9, v.streakBonus > 0 ? .bold : .regular)).foregroundStyle(v.streakBonus > 0 ? Color.signal : Color.muted)
             }
-            cell("HEUTE", "\(dots)/5") {
-                HStack(spacing: 2) {
-                    ForEach(0..<5, id: \.self) { i in
-                        Rectangle().fill(i < dots ? Color.signal : Color.clear)
-                            .frame(width: 7, height: 7)
-                            .overlay(Rectangle().stroke(i < dots ? Color.signal : Color.line2, lineWidth: 1))
-                    }
-                }
+            cell("HEUTE", de(v.todayPts, 1)) {
+                Text("WACHSTUMSPUNKTE").font(mono(9)).foregroundStyle(Color.muted)
             }
-            cell("WACHSTUM", "\(Int((v.g * 100).rounded(.down)))%") {
-                GeometryReader { g in
-                    ZStack(alignment: .leading) {
-                        Rectangle().fill(Color.fg).frame(width: g.size.width * CGFloat(v.g))
-                        // Stufengrenzen
-                        ForEach([0.12, 0.3, 0.55, 0.8], id: \.self) { s in
-                            Rectangle().fill(v.g > s ? Color.bg : Color.line2).frame(width: 1).offset(x: g.size.width * CGFloat(s))
-                        }
-                    }
-                }
-                .frame(height: 7)
-                .overlay(Rectangle().stroke(Color.line2, lineWidth: 1))
+            cell("WACHSTUM", de(v.g * 100, 2) + "%") {
+                PixelBar(value: v.g, color: .fg, height: 3, block: PX)
             }
         }
     }
 
+    /// Zahl mit Komma und fester Nachkommazahl
+    private func de(_ x: Double, _ digits: Int) -> String {
+        String(format: "%.\(digits)f", x).replacingOccurrences(of: ".", with: ",")
+    }
+
     private func cell<F: View>(_ title: String, _ value: String, @ViewBuilder footer: () -> F) -> some View {
-        VStack(alignment: .leading, spacing: 3) {
-            Text(title).font(mono(8.5, .medium))
-            Text(value).font(display(28)).foregroundStyle(Color.fg).lineLimit(1).minimumScaleFactor(0.6)
+        VStack(alignment: .leading, spacing: 2) {
+            Text(title).font(labelFont(9)).tracking(0.8)
+            Text(value).font(display(26)).monospacedDigit().foregroundStyle(Color.fg).lineLimit(1).minimumScaleFactor(0.5)
             footer()
         }
         .padding(.horizontal, 7).padding(.vertical, 6)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .overlay(Rectangle().stroke(Color.line2, lineWidth: 1))
+        .pixelBorder()
     }
 
     /// Die letzten 14 Tage: leer = nichts, grau = etwas, schwarz = gut gepflegt; heute orange umrandet
     private var careStrip: some View {
         let pts = store.carePoints(days: 14)
         return HStack(spacing: 6) {
-            Text("PFLEGE 14T").font(mono(8.5, .medium)).frame(width: 66, alignment: .leading)
-            HStack(spacing: 3) {
+            Text("PFLEGE 14T").font(labelFont(9)).tracking(0.8).frame(width: 66, alignment: .leading)
+            HStack(spacing: PX * 2) {
                 ForEach(Array(pts.enumerated()), id: \.offset) { i, p in
                     let isToday = i == pts.count - 1
                     let fill: Color = p == nil ? .clear : ((p ?? 0) >= 3 ? Color.fg : ((p ?? 0) > 0 ? Color.dim : .clear))
-                    Rectangle()
-                        .fill(fill)
-                        .frame(maxWidth: .infinity).frame(height: 10)
-                        .overlay(Rectangle().stroke(isToday ? Color.signal : (p == nil ? Color.line : Color.line2),
-                                                    style: StrokeStyle(lineWidth: 1, dash: p == nil ? [2, 2] : [])))
+                    PixelBlock().fill(fill)
+                        .frame(maxWidth: .infinity).frame(height: PX * 5)
+                        .overlay(PixelFrame().fill(isToday ? Color.signal : (p == nil ? Color.line : Color.line2)))
                 }
             }
         }
     }
 
+    /// Prägungspunkte (langsam vergessend) und die Sättigung, bei der sie sich bei regelmäßiger Pflege einpendeln
     private func traitGauges(_ v: CreatureVitals) -> some View {
-        VStack(spacing: 5) {
-            LabGauge(name: "TONUS", sub: "KRAFT", value: v.strength)
-            LabGauge(name: "ELASTIZITÄT", sub: "DEHNEN", value: v.stretch)
-            LabGauge(name: "RESONANZ", sub: "GEIST", value: v.mind)
+        VStack(spacing: 4) {
+            gauge("TONUS", "KRAFT", v.strengthPts, CreatureModel.strengthGoal)
+            gauge("ELASTIZITÄT", "DEHNEN", v.stretchPts, CreatureModel.stretchGoal)
+            gauge("RESONANZ", "GEIST", v.mindPts, CreatureModel.mindGoal)
+        }
+    }
+
+    private func gauge(_ name: String, _ sub: String, _ pts: Double, _ goal: Double) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(alignment: .firstTextBaseline, spacing: 4) {
+                Text(name).font(labelFont(9)).tracking(0.8)
+                Text("/ \(sub)").font(mono(9)).foregroundStyle(Color.dim)
+                Spacer()
+                Text(de(pts, 1)).font(mono(10, .bold)).monospacedDigit()
+                Text("/ \(Int(goal)) PKT").font(mono(9)).foregroundStyle(Color.muted)
+            }
+            PixelBar(value: pts / goal, color: .signal, height: 4)
         }
     }
 
@@ -207,15 +207,15 @@ struct HomeView: View {
             : (h < 48 ? "MEDITATION VOR \(String(format: "%02d", Int(h))) H" : "MEDITATION VOR \(Int(h / 24)) T")
         return VStack(alignment: .leading, spacing: 2) {
             HStack(spacing: 4) {
-                Text("EEG").font(mono(8.5, .semibold))
-                Text("// \(state)").font(mono(8.5, .medium))
+                Text("EEG").font(labelFont(9)).tracking(0.8)
+                Text("// \(state)").font(mono(9, .bold))
                 Spacer()
-                Text(since).font(mono(8.5)).foregroundStyle(Color.muted)
+                Text(since).font(mono(9)).foregroundStyle(Color.muted)
             }
             EEGWave(calm: calm).frame(height: 18)
         }
         .padding(.horizontal, 7).padding(.vertical, 5)
-        .overlay(Rectangle().stroke(Color.line2, lineWidth: 1))
+        .pixelBorder()
     }
 
     // MARK: Leiste unten
@@ -227,8 +227,8 @@ struct HomeView: View {
         return HStack(spacing: 6) {
             Button(action: { first ? onRecord() : onGo() }) {
                 ZStack {
-                    Rectangle().fill(Color.signal)
-                    Text(first ? "START" : "GO").font(display(first ? 17 : 30)).foregroundStyle(Color.white)
+                    PixelBlock().fill(Color.signal)
+                    Text(first ? "START" : "GO").font(display(first ? 20 : 30)).tracking(1).foregroundStyle(Color.white)
                 }
                 .frame(width: first ? 84 : 62)
             }
@@ -238,45 +238,32 @@ struct HomeView: View {
             Button { onReport(nil) } label: {
                 VStack(alignment: .leading, spacing: 0) {
                     HStack {
-                        Text("LABORAKTE").font(mono(10, .semibold))
+                        Text("LABORAKTE").font(labelFont(11)).tracking(1)
                         Spacer()
-                        Image(systemName: "arrow.right").font(.system(size: 10, weight: .semibold))
+                        PixelIcon(rows: PixelIcon.arrow, color: .bg)
                     }
                     Spacer(minLength: 2)
                     if store.hasBaseline && store.recordDue {
-                        Text("REKORDTAG FÄLLIG").font(mono(8.5, .semibold)).foregroundStyle(Color.signal)
+                        Text("REKORDTAG FÄLLIG").font(mono(9, .bold)).foregroundStyle(Color.signal)
                     } else {
-                        Text("KÖRPER \(String(format: "%02d", tired))/\(Muscle.allCases.count) BELASTET").font(mono(8.5))
+                        Text("KÖRPER \(String(format: "%02d", tired))/\(Muscle.allCases.count) BELASTET").font(mono(9))
                             .foregroundStyle(Color.bg.opacity(0.65))
                     }
                 }
                 .foregroundStyle(Color.bg)
                 .padding(.horizontal, 9).padding(.vertical, 8)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
-                .background(Color.wire)
+                .background(PixelBlock().fill(Color.wire))
             }
             .buttonStyle(PressStyle())
 
-            tool("plus", "Nachtragen", enabled: store.hasBaseline, onManual)
-            tool("waveform.path.ecg", "Puls", enabled: true, onPulse)
-            tool("gearshape", "Einstellungen", enabled: true, onSettings)
+            PixelToolButton(icon: PixelIcon.plus, label: "Nachtragen", enabled: store.hasBaseline, action: onManual).frame(width: 40)
+            PixelToolButton(icon: PixelIcon.pulse, label: "Puls", action: onPulse).frame(width: 40)
+            PixelToolButton(icon: PixelIcon.gear, label: "Einstellungen", action: onSettings).frame(width: 40)
         }
         .frame(height: 62)
     }
 
-    private func tool(_ icon: String, _ label: String, enabled: Bool, _ action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Image(systemName: icon).font(.system(size: 15, weight: .regular))
-                .foregroundStyle(enabled ? Color.fg : Color.dim)
-                .frame(width: 40)
-                .frame(maxHeight: .infinity)
-                .overlay(Rectangle().stroke(Color.line2, lineWidth: 1))
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(PressStyle())
-        .disabled(!enabled)
-        .accessibilityLabel(label)
-    }
 }
 
 // MARK: - Bausteine
@@ -302,59 +289,5 @@ struct PressStyle: ButtonStyle {
         configuration.label
             .opacity(configuration.isPressed ? 0.7 : 1)
             .animation(.easeOut(duration: 0.1), value: configuration.isPressed)
-    }
-}
-
-/// Messbalken: Beschriftung, Wert, gerahmter Balken in Signal-Orange
-struct LabGauge: View {
-    let name: String
-    let sub: String
-    let value: Double
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            HStack(spacing: 4) {
-                Text(name).font(mono(8.5, .semibold))
-                Text("/ \(sub)").font(mono(8.5)).foregroundStyle(Color.dim)
-                Spacer()
-                Text("\(String(format: "%03d", Int((min(1, value) * 100).rounded()))) %").font(mono(8.5, .medium)).monospacedDigit()
-            }
-            GeometryReader { g in
-                Rectangle().fill(Color.signal)
-                    .frame(width: max(0, (g.size.width - 2) * CGFloat(min(1, max(0, value)))))
-                    .padding(1)
-            }
-            .frame(height: 8)
-            .overlay(Rectangle().stroke(Color.line2, lineWidth: 1))
-        }
-    }
-}
-
-/// Hirnströme: kurz nach einer Meditation ruhige, gleichmäßige Alpha-Wellen; je länger her,
-/// desto schneller, flacher und verrauschter, mit gelegentlichen Ausschlägen.
-struct EEGWave: View {
-    let calm: Double
-    var body: some View {
-        TimelineView(.animation(minimumInterval: 1 / 20)) { tl in
-            Canvas { ctx, size in
-                let t = tl.date.timeIntervalSinceReferenceDate
-                let mid = Double(size.height) / 2, H = Double(size.height) / 2
-                let c = max(0, min(1, calm))
-                var p = Path()
-                var x = 0.0
-                while x <= Double(size.width) {
-                    let u = x + t * 28
-                    let alpha = sin(u * 0.22) * (0.35 + 0.45 * c)
-                    let beta = (sin(u * 0.91 + 1.3) * 0.5 + sin(u * 1.73 + 0.4) * 0.35 + sin(u * 2.9) * 0.25) * (1 - c) * 0.55
-                    // seltene Spitzen, wenn lange nicht meditiert
-                    let k = sin(u * 0.037) * sin(u * 0.053 + 2)
-                    let spike = (k > 0.93 ? (k - 0.93) * 12 : 0) * (1 - c) * sin(u * 3.1)
-                    let y = mid - (alpha + beta + spike) * H * 0.9
-                    if x == 0 { p.move(to: CGPoint(x: x, y: y)) } else { p.addLine(to: CGPoint(x: x, y: y)) }
-                    x += 1.5
-                }
-                ctx.stroke(p, with: .color(Color.fg), lineWidth: 1)
-            }
-        }
     }
 }

@@ -1,7 +1,8 @@
 import SwiftUI
 
 // LABORBLATT: hellgraues Papier, schwarze Haarlinien, ein Signal-Orange, Schiefergrau für Geräte.
-// Punktmatrix-Schrift (Doto) für Zahlen und Namen, IBM Plex Mono für alles andere. Kein Leuchten, keine Verläufe.
+// Helvetica für Namen, Zahlen und Beschriftungen, Courier Prime (Schreibmaschine) für Messwerte. Alles andere als Pixel:
+// Rahmen mit abgeknipsten Ecken, Balken aus Blöcken, Symbole aus Pixeln. Kein Leuchten, keine Verläufe.
 // Die alten Farbnamen bleiben, damit alle Bildschirme automatisch mitziehen.
 
 extension Color {
@@ -42,23 +43,21 @@ extension ExCategory {
     }
 }
 
-/// Messwerte, Zahlen, Fließtext
+/// Messwerte und Fließtext: Schreibmaschine, wie in getippten Missionsakten
 func mono(_ size: CGFloat, _ weight: Font.Weight = .regular) -> Font {
-    let name: String
     switch weight {
-    case .semibold, .bold, .heavy, .black: name = "IBMPlexMono-SemiBold"
-    case .medium: name = "IBMPlexMono-Medium"
-    default: name = "IBMPlexMono-Regular"
+    case .semibold, .bold, .heavy, .black, .medium: return .custom("CourierPrime-Bold", size: size)
+    default: return .custom("CourierPrime-Regular", size: size)
     }
-    return .custom(name, size: size)
 }
 
-/// Große Zahlen und Namen: Punktmatrix wie auf einer Geräteanzeige
+/// Große Zahlen und Namen: Helvetica schmal und fett, die Schrift aus dem NASA-Grafikhandbuch von 1975
 func display(_ size: CGFloat, condensed: Bool = true) -> Font {
-    .custom("DotoLab-ExtraBold", size: size)
+    .custom(condensed ? "HelveticaNeue-CondensedBold" : "Helvetica-Bold", size: size)
 }
 
-func labelFont(_ size: CGFloat) -> Font { .custom("IBMPlexMono-Medium", size: size) }
+/// Kleine Beschriftungen: Helvetica fett, gesperrt
+func labelFont(_ size: CGFloat) -> Font { .custom("Helvetica-Bold", size: size) }
 
 /// Kleine gesperrte Beschriftung wie ein graviertes Typenschild
 struct Label12: View {
@@ -114,9 +113,9 @@ struct LabFrame: ViewModifier {
     var accent: Color = .wire
     func body(content: Content) -> some View {
         content
-            .background(Color.panel)
-            .overlay(Rectangle().stroke(Color.line2, lineWidth: 1))
-            .overlay(alignment: .topTrailing) { Rectangle().fill(accent).frame(width: 5, height: 5).padding(4) }
+            .background(PixelBlock().fill(Color.panel))
+            .pixelBorder()
+            .overlay(alignment: .topTrailing) { Rectangle().fill(accent).frame(width: PX * 2, height: PX * 2).padding(PX * 2) }
     }
 }
 
@@ -131,9 +130,9 @@ struct Lamp: View {
     var body: some View {
         TimelineView(.periodic(from: .now, by: 0.8)) { tl in
             let on = !blink || Int(tl.date.timeIntervalSinceReferenceDate / 0.8) % 2 == 0
-            Circle().fill(color.opacity(on ? 1 : 0.25)).frame(width: 7, height: 7).glow(on ? color : .clear, 5)
+            Rectangle().fill(color.opacity(on ? 1 : 0.25)).frame(width: PX * 3, height: PX * 3)
         }
-        .frame(width: 7, height: 7)
+        .frame(width: PX * 3, height: PX * 3)
     }
 }
 
@@ -145,7 +144,7 @@ struct SegMeter: View {
     var height: CGFloat = 8
     var body: some View {
         let lit = Int((min(1, max(0, value)) * Double(segments)).rounded())
-        HStack(spacing: 2) {
+        HStack(spacing: PX) {
             ForEach(0..<segments, id: \.self) { i in
                 Rectangle()
                     .fill(i < lit ? color : Color.line)
@@ -166,8 +165,8 @@ struct HangarButtonStyle: ButtonStyle {
             .multilineTextAlignment(.center)
             .frame(maxWidth: .infinity, minHeight: 48)
             .padding(.horizontal, 6)
-            .background(filled ? color : Color.panel)
-            .overlay(Rectangle().stroke(filled ? color : Color.line2, lineWidth: 1))
+            .background(PixelBlock().fill(filled ? color : Color.panel))
+            .overlay(PixelFrame().fill(filled ? color : Color.line2))
             .opacity(configuration.isPressed ? 0.6 : 1)
     }
 }
@@ -182,12 +181,12 @@ struct Block<Content: View>: View {
         VStack(alignment: .leading, spacing: 12) {
             if let title {
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    Rectangle().fill(accent).frame(width: 6, height: 6).glow(accent, 4)
+                    Rectangle().fill(accent).frame(width: PX * 3, height: PX * 3)
                     Label12(text: title, color: .fg, size: 12)
                     Spacer()
                     if let trailing { Text(trailing).font(mono(10)).foregroundStyle(Color.muted).lineLimit(2).multilineTextAlignment(.trailing) }
                 }
-                Rectangle().fill(Color.line2).frame(height: 1)
+                Rectangle().fill(Color.line2).frame(height: PX)
             }
             content
         }

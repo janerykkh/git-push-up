@@ -27,7 +27,7 @@ struct MeditationView: View {
                 Button {
                     stop(); onClose()
                 } label: {
-                    Image(systemName: "xmark").foregroundStyle(Color.muted).frame(width: 44, height: 44)
+                    PixelIcon(rows: PixelIcon.close, color: .muted).frame(width: 44, height: 44)
                 }
             }
 
@@ -35,14 +35,26 @@ struct MeditationView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
 
             ZStack {
-                Circle().stroke(Color.line2, lineWidth: 2)
-                Circle().trim(from: 0, to: 1 - progress)
-                    .stroke(Color.mind, style: StrokeStyle(lineWidth: 3, lineCap: .round))
-                    .rotationEffect(.degrees(-90))
-                    .glow(.mind, 10)
-                NeuroScanView(score: start == nil ? 0.2 : 0.3 + 0.7 * progress)
-                    .padding(48)
-                    .opacity(0.8)
+                // Restzeit als Pixelring
+                Canvas { ctx, size in
+                    let c = CGPoint(x: size.width / 2, y: size.height / 2), r = min(size.width, size.height) / 2 - PX * 3
+                    var all = PixelPath(), left = PixelPath()
+                    let steps = 160, rest = 1 - progress
+                    for i in 0...steps {
+                        let f = Double(i) / Double(steps), a = -Double.pi / 2 + f * 2 * .pi
+                        let p = CGPoint(x: c.x + CGFloat(cos(a)) * r, y: c.y + CGFloat(sin(a)) * r)
+                        if i == 0 { all.move(to: p); left.move(to: p) } else {
+                            all.addLine(to: p)
+                            if f <= rest { left.addLine(to: p) }
+                        }
+                    }
+                    ctx.pixelStroke(all, .line, size: PX)
+                    ctx.pixelStroke(left, .mind, size: PX * 2)
+                }
+                EEGWave(calm: start == nil ? 0.3 : 0.4 + 0.6 * progress, color: .mind)
+                    .frame(height: 40)
+                    .padding(.horizontal, 56)
+                    .offset(y: -10)
                 VStack(spacing: 4) {
                     let left = Int((total - elapsed).rounded(.up))
                     Text(String(format: "%d:%02d", left / 60, left % 60))

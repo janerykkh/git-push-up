@@ -27,7 +27,6 @@ struct LabReportView: View {
                         header
                         counters
                         biomarkerPanel(bio)
-                        neuroPanel(bio)
                         scan(f)
                         if let m = selected { muscleInfo(m, f).id("info") }
                         tissue(f)
@@ -57,7 +56,7 @@ struct LabReportView: View {
             }
             Spacer()
             Button(action: onClose) {
-                Image(systemName: "xmark").font(.system(size: 17, weight: .semibold)).foregroundStyle(Color.muted).frame(width: 44, height: 44)
+                PixelIcon(rows: PixelIcon.close, color: .muted).frame(width: 44, height: 44)
             }
             .accessibilityLabel("Schließen")
         }
@@ -98,72 +97,55 @@ struct LabReportView: View {
         .labFrame(c == .muted ? .line2 : c)
     }
 
-    // MARK: Biomarker + DNA
+    // MARK: Biomarker
 
+    /// Alles auf einer Skala: Anteil am Wochenziel, mit echter Einheit daneben. Erholung ist ein Zustand, kein Wochenwert,
+    /// darum steht sie getrennt darunter.
     private func biomarkerPanel(_ b: Store.Biomarkers) -> some View {
-        HStack(alignment: .top, spacing: 14) {
-            // Probenröhre
-            ZStack {
-                Capsule().fill(Color.wire.opacity(0.05))
-                DNAHelixView().padding(.vertical, 14).padding(.horizontal, 6)
-                Capsule().stroke(Color.wire.opacity(0.5), lineWidth: 1)
-            }
-            .frame(width: 70)
-            VStack(alignment: .leading, spacing: 11) {
-                HStack {
-                    Label12(text: "BIOMARKER", color: .fg, size: 12)
+        Block(title: "BIOMARKER", trailing: "WOCHENZIEL · 7 TAGE", accent: .signal) {
+            marker("KRAFTSÄTZE", b.strengthSets, Store.Biomarkers.strengthTarget, "SÄTZE")
+            marker("DEHNEN", b.stretchCount, Store.Biomarkers.stretchTarget, "EINHEITEN")
+            marker("MEDITATION", b.neuroMinutes, Store.Biomarkers.mindTarget, "MIN")
+            marker("AKTIVE TAGE", b.activeDays, Store.Biomarkers.daysTarget, "TAGE")
+            Rectangle().fill(Color.line).frame(height: PX)
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(alignment: .firstTextBaseline) {
+                    Label12(text: "ERHOLUNG JETZT", color: .fg, size: 10)
                     Spacer()
-                    Text("7 TAGE").font(mono(9)).foregroundStyle(Color.dim)
+                    Text("\(Int((b.regeneration * 100).rounded())) %").font(mono(13, .bold)).foregroundStyle(Color.wire)
                 }
-                marker("VITALITÄT", b.vitality, .phos, "Kraftarbeit der Woche")
-                marker("REGENERATION", b.regeneration, .wire, "wie erholt die Muskeln sind")
-                marker("FLEXIBILITÄT", b.flex, ExCategory.dehnen.color, "\(b.stretchCount) Dehneinheiten")
-                marker("NEURO", b.neuro, .mind, "\(b.neuroMinutes) Min. Meditation")
-                marker("KONTINUITÄT", b.continuity, .amber, "Serie")
+                PixelBar(value: b.regeneration, color: .wire, height: 6)
+                Text("Wie erholt die Muskeln gerade im Schnitt sind. Kein Wochenwert.").font(mono(10)).foregroundStyle(Color.dim)
             }
         }
-        .padding(14)
-        .frame(height: 290)
-        .labFrame(.wire)
     }
 
-    private func marker(_ name: String, _ v: Double, _ c: Color, _ hint: String) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
+    private func marker(_ name: String, _ v: Int, _ target: Int, _ unit: String) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
             HStack(alignment: .firstTextBaseline) {
                 Label12(text: name, color: .fg, size: 10)
                 Spacer()
-                Text(String(format: "%03d", Int((min(1, v) * 100).rounded()))).font(mono(13, .bold)).foregroundStyle(c)
+                Text("\(v) / \(target) \(unit)").font(mono(13, .bold)).foregroundStyle(v >= target ? Color.signal : Color.fg)
             }
-            SegMeter(value: v, color: c, segments: 16, height: 6)
-            Text(hint).font(mono(9)).foregroundStyle(Color.dim)
+            PixelBar(value: Double(v) / Double(max(1, target)), color: .signal, height: 6)
         }
-    }
-
-    private func neuroPanel(_ b: Store.Biomarkers) -> some View {
-        HStack(spacing: 12) {
-            VStack(alignment: .leading, spacing: 6) {
-                Label12(text: "NEURO-SCAN", color: .fg, size: 12)
-                Text("\(b.neuroMinutes)").font(mono(34, .bold)).foregroundStyle(Color.mind).glow(.mind, 8)
-                Label12(text: "MIN · 7 TAGE", size: 9)
-                Text(b.neuro >= 0.7 ? "Ruhiges Signal." : (b.neuro > 0 ? "Signal stabilisiert sich." : "Noch kein Signal."))
-                    .font(mono(10)).foregroundStyle(Color.muted).fixedSize(horizontal: false, vertical: true)
-            }
-            .frame(width: 112, alignment: .leading)
-            NeuroScanView(score: b.neuro)
-                .frame(maxWidth: .infinity)
-        }
-        .padding(14)
-        .frame(height: 150)
-        .labFrame(.mind)
     }
 
     // MARK: Körper-Scan
 
     private func scan(_ f: [Muscle: Double]) -> some View {
         let tired = f.values.filter { $0 >= 0.5 }.count
+        let calm = store.eegCalm
         return BodyScanView(fatigue: f, selected: $selected)
-            .background(RadialGradient(colors: [Color.glassTop, .bg], center: .init(x: 0.5, y: 0.4), startRadius: 0, endRadius: 300))
-            .overlay(alignment: .topLeading) { Label12(text: "SPECIMEN · KÖRPER", color: .fg, size: 11).padding(12) }
+            .background(Color.panel)
+            .overlay(alignment: .topLeading) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Label12(text: "SPECIMEN · KÖRPER", color: .fg, size: 11)
+                    Label12(text: "EEG", color: .muted, size: 8)
+                    EEGWave(calm: calm, color: .mind).frame(width: 96, height: 22)
+                }
+                .padding(12)
+            }
             .overlay(alignment: .topTrailing) { Label12(text: "\(tired)/\(Muscle.allCases.count) BELASTET", color: .phos, size: 10).padding(12) }
             .overlay(alignment: .bottomLeading) { Label12(text: "TIPPEN · DREHEN", color: .dim, size: 9).padding(12) }
             .labFrame(.phos)
@@ -181,7 +163,7 @@ struct LabReportView: View {
                 Text(m.label.uppercased()).font(display(22)).tracking(2).foregroundStyle(Color.amber).glow(.amber, 6)
                 Spacer()
                 Button { selected = nil } label: {
-                    Image(systemName: "xmark").foregroundStyle(Color.muted).frame(width: 36, height: 36)
+                    PixelIcon(rows: PixelIcon.close, color: .muted).frame(width: 36, height: 36)
                 }
             }
             HStack(alignment: .firstTextBaseline, spacing: 10) {

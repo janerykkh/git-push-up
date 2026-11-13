@@ -27,10 +27,10 @@ struct ExerciseView: View {
                     Text(ex.cat.label.uppercased()).font(mono(11, .bold)).tracking(2)
                         .foregroundStyle(ex.cat.color)
                         .padding(.horizontal, 9).padding(.vertical, 4)
-                        .overlay(RoundedRectangle(cornerRadius: 2).stroke(ex.cat.color, lineWidth: 1))
+                        .overlay(PixelFrame().fill(ex.cat.color))
                     Spacer()
                     Button(action: onClose) {
-                        Image(systemName: "xmark").font(.system(size: 16, weight: .medium)).foregroundStyle(Color.muted)
+                        PixelIcon(rows: PixelIcon.close, color: .muted)
                             .frame(width: 44, height: 44)
                     }
                     .accessibilityLabel("Zurück")
@@ -47,7 +47,7 @@ struct ExerciseView: View {
                     .padding(12)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .background(Color.amber.opacity(0.07))
-                    .overlay(RoundedRectangle(cornerRadius: 4).stroke(Color.amber, lineWidth: 1))
+                    .overlay(PixelFrame().fill(Color.amber))
                 }
 
                 StickFigure(ex: ex)
@@ -79,7 +79,7 @@ struct ExerciseView: View {
                                 .font(mono(22)).foregroundStyle(Color.fg)
                                 .padding(.horizontal, 14).frame(height: 52)
                                 .background(Color.panel)
-                                .overlay(RoundedRectangle(cornerRadius: 4).stroke(Color.line2, lineWidth: 1))
+                                .overlay(PixelFrame().fill(Color.line2))
                             Button("SPEICHERN") {
                                 let v = max(0, Int(partialText) ?? 0)
                                 onFinish(boss ? Double(v) >= Double(target) * 0.9 : false, target, v)

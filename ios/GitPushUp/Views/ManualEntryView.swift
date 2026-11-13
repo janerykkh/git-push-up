@@ -24,7 +24,7 @@ struct ManualEntryView: View {
                     Text("NACHTRAGEN").font(mono(15, .bold)).tracking(2).foregroundStyle(Color.wire)
                     Spacer()
                     Button(action: onDone) {
-                        Image(systemName: "xmark").foregroundStyle(Color.muted).frame(width: 44, height: 44)
+                        PixelIcon(rows: PixelIcon.close, color: .muted).frame(width: 44, height: 44)
                     }
                 }
 
@@ -36,10 +36,10 @@ struct ManualEntryView: View {
                     ForEach(store.pool) { e in
                         Button { exId = e.id } label: {
                             HStack(spacing: 12) {
-                                Circle().fill(e.cat.color).frame(width: 6, height: 6)
+                                Rectangle().fill(e.cat.color).frame(width: PX * 3, height: PX * 3)
                                 Text(e.name).font(mono(14)).foregroundStyle(exId == e.id ? Color.amber : Color.fg)
                                 Spacer()
-                                if exId == e.id { Image(systemName: "checkmark").foregroundStyle(Color.amber) }
+                                if exId == e.id { PixelIcon(rows: ["......#", ".....#.", "#...#..", ".#.#...", "..#...."], color: .amber) }
                             }
                             .padding(.vertical, 10)
                             .contentShape(Rectangle())
@@ -57,7 +57,7 @@ struct ManualEntryView: View {
                             .font(mono(22)).foregroundStyle(Color.fg)
                             .padding(.horizontal, 14).frame(height: 52)
                             .background(Color.panel)
-                            .overlay(RoundedRectangle(cornerRadius: 4).stroke(Color.line2, lineWidth: 1))
+                            .overlay(PixelFrame().fill(Color.line2))
                         Stepper(value: $sets, in: 1...10) {
                             Text("\(sets) \(sets == 1 ? "SATZ" : "SÄTZE")").font(mono(13, .bold)).foregroundStyle(Color.fg)
                         }

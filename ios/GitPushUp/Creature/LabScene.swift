@@ -76,180 +76,289 @@ func makeImage(_ rgba: [UInt8], _ w: Int, _ h: Int) -> CGImage? {
                    provider: provider, decode: nil, shouldInterpolate: false, intent: .defaultIntent)
 }
 
-/// Labor mit Tiefe: ein Raum mit Fluchtpunkt hinter einem Glaskasten, der selbst Tiefe hat
-/// (sichtbare Hinterkanten, Boden in Perspektive, getönte Seitenscheiben). Alles als Pixelbild.
+/// Labor mit Tiefe: jeder Pixel schickt einen Sichtstrahl in einen echten 3D-Raum (Wände, Boden, Decke, Geräte).
+/// Dadurch stimmt die Perspektive überall. Dunst je nach Entfernung und ein feines Raster (Dithering) machen es schemenhaft
+/// und pixelig. Davor steht ein Glaskasten, dessen Hinterkanten zum selben Fluchtpunkt laufen.
 enum LabScene {
     struct Geo {
-        var cx, vy: Double
-        var bx0, bx1, by0, by1: Double   // Rückwand des Raums
+        var cx, hy: Double
         var cb0, cb1, ct: Double         // Rückseite des Kastens
         var yF, yB: Double               // Kastenboden vorne / hinten
-        /// Wo das Wesen steht: Mitte des Kastenbodens
         var feetY: Double { (yB + (yF - yB) * 0.5).rounded() }
     }
 
     static func geo(_ w: Int, _ h: Int) -> Geo {
         let W = Double(w), H = Double(h)
-        return Geo(cx: W / 2, vy: H * 0.40,
-                   bx0: (W * 0.27).rounded(), bx1: (W * 0.73).rounded(), by0: (H * 0.13).rounded(), by1: (H * 0.52).rounded(),
-                   cb0: (W * 0.13).rounded(), cb1: (W * 0.87).rounded(), ct: (H * 0.09).rounded(),
-                   yF: H - max(8, (H * 0.1).rounded()), yB: (H * 0.70).rounded())
+        let cx = W * 0.5, hy = H * 0.42, s = 0.8, yF = H - 3
+        return Geo(cx: cx, hy: hy, cb0: cx - cx * s, cb1: cx + (W - cx) * s, ct: hy - hy * s, yF: yF, yB: hy + (yF - hy) * s)
     }
 
-    static let paper: RGB = (233, 233, 230)
     static let ink: RGB = (24, 24, 24)
     static let slate: RGB = (62, 70, 77)
     static let orange: RGB = (240, 78, 35)
     static let grey: RGB = (154, 154, 150)
-    static let light: RGB = (246, 246, 244)
     static let white: RGB = (255, 255, 255)
+
+    // MARK: Raum und Geräte
+
+    private static let roomX0 = -4.2, roomX1 = 4.2, floorY = 1.5, ceilY = -2.1, backZ = 24.0
+
+    private enum Shape {
+        case box(x0: Double, x1: Double, y0: Double, y1: Double, z0: Double, z1: Double)
+        case cyl(x: Double, z: Double, r: Double, y0: Double, y1: Double)     // stehender Zylinder
+        case sph(x: Double, y: Double, z: Double, r: Double)
+        case ring(x: Double, y: Double, z: Double, r0: Double, r1: Double)    // Ring in einer Ebene quer zur Blickrichtung
+        case pipe(x: Double, y: Double, r: Double)                            // Rohr entlang der Tiefe
+    }
+    private struct Obj { var shape: Shape; var col: RGB; var lamp = false }
+
+    private static func objects() -> [Obj] {
+        var O: [Obj] = []
+        func box(_ x0: Double, _ x1: Double, _ y0: Double, _ y1: Double, _ z0: Double, _ z1: Double, _ c: RGB) {
+            O.append(Obj(shape: .box(x0: x0, x1: x1, y0: y0, y1: y1, z0: z0, z1: z1), col: c))
+        }
+        func cyl(_ x: Double, _ z: Double, _ r: Double, _ y0: Double, _ y1: Double, _ c: RGB, lamp: Bool = false) {
+            O.append(Obj(shape: .cyl(x: x, z: z, r: r, y0: y0, y1: y1), col: c, lamp: lamp))
+        }
+        func sph(_ x: Double, _ y: Double, _ z: Double, _ r: Double, _ c: RGB) { O.append(Obj(shape: .sph(x: x, y: y, z: z, r: r), col: c)) }
+
+        // Links: lange Laborbank mit Glaswaren und Geräten, darüber ein Regalbrett mit Flaschen
+        box(-4.2, -2.9, 0.62, 1.5, 3.5, 15, (150, 158, 164))
+        box(-4.2, -2.85, 0.55, 0.62, 3.5, 15, (236, 236, 233))
+        var z = 4.0
+        while z < 14.5 {
+            switch Int((z * 7).rounded()) % 4 {
+            case 0: cyl(-3.4, z, 0.13, 0.15, 0.55, (226, 234, 234))
+            case 1: cyl(-3.5, z, 0.07, 0.05, 0.55, (226, 234, 234)); sph(-3.5, 0.38, z, 0.2, (150, 200, 192))
+            case 2: box(-3.75, -3.25, 0.2, 0.55, z - 0.2, z + 0.2, (90, 98, 104))
+            default: cyl(-3.3, z, 0.09, 0.25, 0.55, (236, 176, 146))
+            }
+            z += 1.15
+        }
+        box(-4.2, -3.4, -0.95, -0.88, 3.5, 15, (200, 200, 196))
+        z = 4.2
+        while z < 14 {
+            let v = Int(z * 10) % 3
+            cyl(-3.8, z, 0.08, -1.25, -0.95, v != 0 ? (210, 214, 220) : (186, 200, 220))
+            z += 0.7
+        }
+        // Rechts: drei Kryotanks mit Kuppel, Sichtfenster und Lämpchen, dahinter ein Rechnerschrank
+        for tz in [7.0, 9.6, 12.2] {
+            cyl(3.2, tz, 0.6, -0.6, 1.5, (178, 186, 190))
+            sph(3.2, -0.6, tz, 0.6, (196, 202, 206))
+            box(2.55, 2.62, 0.05, 0.4, tz - 0.2, tz + 0.2, (120, 190, 180))
+            box(2.56, 2.62, -0.25, -0.15, tz - 0.06, tz + 0.06, orange)
+        }
+        box(2.75, 4.2, -1.3, 1.5, 14, 18.5, (78, 86, 92))
+        // Mitte hinten: Ringscanner mit Liege
+        O.append(Obj(shape: .ring(x: 0, y: -0.05, z: 16, r0: 1.1, r1: 1.5), col: (150, 156, 160)))
+        box(-0.7, 0.7, 1.15, 1.5, 15.6, 16.4, (180, 184, 186))
+        box(-0.45, 0.45, 0.72, 0.86, 13.2, 18.5, (230, 230, 228))
+        box(-0.1, 0.1, 0.86, 1.5, 13.6, 13.8, (170, 174, 176))
+        box(-0.1, 0.1, 0.86, 1.5, 18, 18.2, (170, 174, 176))
+        // Säulen, Rohre an der Decke, hängende Lampen
+        box(-4.2, -3.5, ceilY, 1.5, 19.5, 20.3, (222, 222, 219))
+        box(3.5, 4.2, ceilY, 1.5, 19.5, 20.3, (214, 214, 211))
+        O.append(Obj(shape: .pipe(x: -1.9, y: -1.85, r: 0.16), col: (200, 204, 206)))
+        O.append(Obj(shape: .pipe(x: -1.5, y: -1.9, r: 0.09), col: (214, 216, 218)))
+        O.append(Obj(shape: .pipe(x: 2.3, y: -1.88, r: 0.12), col: (196, 200, 202)))
+        for lz in [6.0, 11.0, 16.0] {
+            cyl(0, lz, 0.03, -2.1, -1.45, (150, 150, 148))
+            cyl(0, lz, 0.28, -1.45, -1.32, (240, 240, 238), lamp: true)
+        }
+        return O
+    }
+
+    private enum Surface { case floor, ceil, left, right, back }
+
+    private static func shadeRoom(_ s: Surface, _ x: Double, _ y: Double, _ z: Double) -> RGB {
+        switch s {
+        case .floor:
+            var c: RGB = (206, 206, 202)
+            let fx = x - floor(x), fz = z - floor(z)
+            if fx < 0.03 * max(1, z * 0.25) || fz < 0.05 { c = (186, 186, 182) }
+            if abs(abs(x) - 2.35) < 0.05 && z > 2 { c = orange }   // Markierung am Boden
+            return c
+        case .ceil:
+            if abs(x) < 0.9 && z.truncatingRemainder(dividingBy: 3.2) < 1.4 { return white }
+            if z.truncatingRemainder(dividingBy: 1.6) < 0.05 { return (220, 220, 218) }
+            return (236, 236, 234)
+        case .left, .right:
+            var c: RGB = s == .left ? (224, 224, 221) : (214, 214, 211)
+            let m = z.truncatingRemainder(dividingBy: 2.4)
+            if m < 0.06 { c = (200, 200, 197) }
+            if abs(y + 0.2) < 0.025 { c = (204, 204, 200) }
+            if s == .right && y > -0.2 && y < 0.5 && m > 1 && m < 2.1 { c = (200, 206, 208) }
+            return c
+        case .back:
+            // großes helles Fenster mit Sprossen
+            if abs(x) < 2.6 && y > -1.6 && y < 0.4 {
+                if (x + 2.6).truncatingRemainder(dividingBy: 1.3) < 0.05 || (y + 1.6).truncatingRemainder(dividingBy: 1) < 0.05 { return (196, 200, 202) }
+                return y > 0.25 ? (214, 218, 220) : (244, 247, 248)
+            }
+            return (226, 226, 223)
+        }
+    }
+
+    /// Ein Sichtstrahl: Farbe und Tiefe des ersten Treffers
+    private static func trace(_ ox: Double, _ oy: Double, _ dx: Double, _ dy: Double, _ O: [Obj]) -> (RGB, Double) {
+        let dz = 1.0
+        var bestZ = 1e9
+        var col: RGB = (230, 230, 228)
+        var n = (0.0, 0.0, -1.0)
+        var room = true
+        var lamp = false
+        // Raumflächen
+        let cand: [(Surface, Double, (Double, Double, Double))] = [
+            (.floor, dy > 0 ? (floorY - oy) / dy : 1e9, (0, -1, 0)),
+            (.ceil, dy < 0 ? (ceilY - oy) / dy : 1e9, (0, 1, 0)),
+            (.left, dx < 0 ? (roomX0 - ox) / dx : 1e9, (1, 0, 0)),
+            (.right, dx > 0 ? (roomX1 - ox) / dx : 1e9, (-1, 0, 0)),
+            (.back, backZ / dz, (0, 0, -1)),
+        ]
+        for (s, t, nn) in cand where t > 0 && t * dz < bestZ {
+            bestZ = t * dz
+            col = shadeRoom(s, ox + dx * t, oy + dy * t, t * dz)
+            n = nn
+        }
+        // Geräte
+        for o in O {
+            var t = 1e9
+            var nn = (0.0, 0.0, -1.0)
+            switch o.shape {
+            case let .box(x0, x1, y0, y1, z0, z1):
+                var tmin = -1e9, tmax = 1e9
+                var hitN = (0.0, 0.0, -1.0)
+                var ok = true
+                let axes: [(Double, Double, Double, Double, (Double, Double, Double), (Double, Double, Double))] = [
+                    (ox, dx, x0, x1, (-1, 0, 0), (1, 0, 0)), (oy, dy, y0, y1, (0, -1, 0), (0, 1, 0)), (0, dz, z0, z1, (0, 0, -1), (0, 0, 1)),
+                ]
+                for (p, d, a, b, na, nb) in axes {
+                    if abs(d) < 1e-9 { if p < a || p > b { ok = false; break }; continue }
+                    var t1 = (a - p) / d, t2 = (b - p) / d, n1 = na
+                    if t1 > t2 { swap(&t1, &t2); n1 = nb }
+                    if t1 > tmin { tmin = t1; hitN = n1 }
+                    if t2 < tmax { tmax = t2 }
+                    if tmin > tmax { ok = false; break }
+                }
+                if ok && tmin > 0 { t = tmin; nn = hitN }
+            case let .cyl(cx, cz, r, y0, y1):
+                let px = ox - cx, pz = -cz
+                let a = dx * dx + dz * dz, b = 2 * (px * dx + pz * dz), c = px * px + pz * pz - r * r
+                let D = b * b - 4 * a * c
+                if D >= 0 {
+                    let tt = (-b - sqrt(D)) / (2 * a), yy = oy + dy * tt
+                    if tt > 0 && yy >= y0 && yy <= y1 {
+                        t = tt; nn = ((px + dx * tt) / r, 0, (pz + dz * tt) / r)
+                    } else if dy != 0 {
+                        let t2 = (y0 - oy) / dy, xx = ox + dx * t2 - cx, zz = dz * t2 - cz
+                        if t2 > 0 && xx * xx + zz * zz <= r * r { t = t2; nn = (0, -1, 0) }
+                    }
+                }
+            case let .sph(sx, sy, sz, r):
+                let px = ox - sx, py = oy - sy, pz = -sz
+                let a = dx * dx + dy * dy + dz * dz, b = px * dx + py * dy + pz * dz, c = px * px + py * py + pz * pz - r * r
+                let D = b * b - a * c
+                if D >= 0 {
+                    let tt = (-b - sqrt(D)) / a
+                    if tt > 0 { t = tt; nn = ((px + dx * tt) / r, (py + dy * tt) / r, (pz + dz * tt) / r) }
+                }
+            case let .ring(rx, ry, rz, r0, r1):
+                let tt = rz / dz, xx = ox + dx * tt - rx, yy = oy + dy * tt - ry, r = hypot(xx, yy)
+                if r >= r0 && r <= r1 {
+                    t = tt
+                    let m = (r - (r0 + r1) / 2) / ((r1 - r0) / 2)
+                    nn = (xx / r * m * 0.8, yy / r * m * 0.8, -sqrt(max(0, 1 - m * m * 0.64)))
+                }
+            case let .pipe(px0, py0, r):
+                let px = ox - px0, py = oy - py0
+                let a = dx * dx + dy * dy, b = 2 * (px * dx + py * dy), c = px * px + py * py - r * r
+                let D = b * b - 4 * a * c
+                if D >= 0 && a > 0 {
+                    let tt = (-b - sqrt(D)) / (2 * a)
+                    if tt > 0 { t = tt; nn = ((px + dx * tt) / r, (py + dy * tt) / r, 0) }
+                }
+            }
+            if t < 1e9 && t * dz < bestZ {
+                bestZ = t * dz; col = o.col; n = nn; room = false; lamp = o.lamp
+            }
+        }
+        // Licht von oben vorne links, dazu Umgebungslicht
+        let L = (-0.35, -0.8, -0.45), ll = sqrt(L.0 * L.0 + L.1 * L.1 + L.2 * L.2)
+        let lam = max(0, -(n.0 * L.0 + n.1 * L.1 + n.2 * L.2) / ll)
+        let k = room ? 0.9 + 0.1 * lam : 0.72 + 0.34 * lam
+        if lamp { return (white, bestZ) }
+        return ((UInt8(clamping: Int(Double(col.0) * k)), UInt8(clamping: Int(Double(col.1) * k)), UInt8(clamping: Int(Double(col.2) * k))), bestZ)
+    }
+
+    private static let bayer: [[Double]] = [[0, 8, 2, 10], [12, 4, 14, 6], [3, 11, 1, 9], [15, 7, 13, 5]]
 
     static func backdrop(_ w: Int, _ h: Int) -> PixelCanvas {
         var c = PixelCanvas(w, h, opaque: true)
-        let G = geo(w, h), W = Double(w), H = Double(h)
-        let cx = G.cx, bx0 = G.bx0, bx1 = G.bx1, by0 = G.by0, by1 = G.by1
-
-        // Raum: Decke, Wände, Boden, Rückwand
-        c.quad([(0, 0), (W, 0), (bx1, by0), (bx0, by0)], (242, 242, 240))
-        c.quad([(0, 0), (bx0, by0), (bx0, by1), (0, H)], (224, 224, 221))
-        c.quad([(W, 0), (W, H), (bx1, by1), (bx1, by0)], (214, 214, 211))
-        c.quad([(0, H), (bx0, by1), (bx1, by1), (W, H)], (206, 206, 202))
-        c.rect(bx0, by0, bx1, by1, (230, 230, 227))
-
-        // Bodenfliesen: Fluchtlinien und Tiefenlinien
-        for k in -8...8 {
-            let xb = cx + Double(k) * (bx1 - bx0) / 16, xf = cx + Double(k) * W / 8
-            c.line(xf, H, xb, by1, (192, 192, 188))
-        }
-        for i in 1..<9 {
-            let t = 1 - 1 / (1 + Double(i) * 0.45)
-            let y = by1 + (H - by1) * (1 - t)
-            let f = (y - by1) / (H - by1)
-            c.line(bx0 - bx0 * f, y, bx1 + (W - bx1) * f, y, (194, 194, 188))
-        }
-
-        // Decke: Leuchtfelder in Perspektive
-        func ceilX(_ yy: Double) -> (Double, Double) {
-            let half = (cx - bx0) + (W * 0.5 - (cx - bx0)) * (1 - yy / by0)
-            return (cx - half * 0.45, cx + half * 0.45)
-        }
-        for (t0, t1) in [(0.08, 0.22), (0.38, 0.5), (0.62, 0.7)] {
-            let yy0 = by0 * t0, yy1 = by0 * t1
-            let a = ceilX(yy0), b = ceilX(yy1)
-            c.quad([(a.0, yy0), (a.1, yy0), (b.1, yy1), (b.0, yy1)], white)
-        }
-
-        // Linke Wand: Regalbretter in Perspektive mit Gläsern
-        func leftY(_ x: Double, _ yBack: Double, _ yScreen: Double) -> Double { yScreen + (yBack - yScreen) * (x / bx0) }
-        let liquids: [RGB] = [(150, 190, 186), (236, 170, 140), (186, 180, 214), (200, 200, 196)]
-        for (ys, yb) in [(H * 0.30, by0 + (by1 - by0) * 0.28), (H * 0.48, by0 + (by1 - by0) * 0.5), (H * 0.66, by0 + (by1 - by0) * 0.72)] {
-            c.line(8, leftY(8, yb, ys), bx0 - 3, leftY(bx0 - 3, yb, ys), (176, 176, 172))
-            var x = 10.0
-            while x < bx0 - 5 {
-                let y = leftY(x, yb, ys), s = 1 - x / bx0 * 0.5
-                let hh = max(2, (5 * s).rounded())
-                let xi = Int(x)
-                c.rect(x, y - hh, x + max(1, (2 * s).rounded()), y, liquids[(xi * 5) % 4])
-                x += Double(4 + (xi * 7) % 3)
-            }
-        }
-
-        // Rechte Wand: Paneel mit Punktraster und ein Gerät
-        func rightY(_ x: Double, _ yBack: Double, _ yScreen: Double) -> Double { yScreen + (yBack - yScreen) * ((W - x) / (W - bx1)) }
-        var x = bx1 + 4
-        while x < W - 6 {
-            let y0 = rightY(x, by0 + (by1 - by0) * 0.2, H * 0.22), y1 = rightY(x, by0 + (by1 - by0) * 0.55, H * 0.6)
-            for j in 0..<5 { c.set(x, y0 + (y1 - y0) * Double(j) / 4, (170, 170, 166)) }
-            x += 3
-        }
-        let mxa = W - 26, mxb = W - 10
-        c.quad([(mxa, rightY(mxa, by0 + (by1 - by0) * 0.6, H * 0.62)), (mxb, rightY(mxb, by0 + (by1 - by0) * 0.6, H * 0.62)),
-                (mxb, rightY(mxb, by0 + (by1 - by0) * 0.9, H * 0.86)), (mxa, rightY(mxa, by0 + (by1 - by0) * 0.9, H * 0.86))], slate)
-
-        // Rückwand: Tür mit Bändern, Schaltschrank mit Lämpchen, runde Anzeige
-        let bw = bx1 - bx0, bh = by1 - by0
-        c.rect(bx0 + bw * 0.38, by0 + bh * 0.18, bx0 + bw * 0.62, by1, (214, 214, 210))
-        c.rect(bx0 + bw * 0.38, by0 + bh * 0.18, bx0 + bw * 0.62, by0 + bh * 0.18 + 1, grey)
-        for k in 1..<4 {
-            let yy = by0 + bh * (0.18 + Double(k) * 0.2)
-            c.rect(bx0 + bw * 0.38, yy, bx0 + bw * 0.62, yy + 1, (200, 200, 196))
-        }
-        c.rect(bx0 + bw * 0.08, by0 + bh * 0.3, bx0 + bw * 0.28, by1, slate)
-        c.rect(bx0 + bw * 0.12, by0 + bh * 0.38, bx0 + bw * 0.12 + 2, by0 + bh * 0.38 + 1, orange)
-        let rcx = bx0 + bw * 0.8, rcy = by0 + bh * 0.35, rr = max(3, bw * 0.08)
-        var ang = 0.0
-        while ang < 6.28 { c.set(rcx + cos(ang) * rr, rcy + sin(ang) * rr, grey); ang += 0.12 }
-        c.line(rcx, rcy, rcx + rr * 0.6, rcy - rr * 0.5, ink)
-        c.rect(bx0, by1 - 2, bx1, by1, (196, 196, 192))
-
-        // Tiefe: je weiter hinten, desto mehr Dunst
-        for y in 0..<h {
-            for xx in 0..<w {
-                var t: Double
-                if Double(xx) >= bx0 && Double(xx) < bx1 && Double(y) >= by0 && Double(y) < by1 {
-                    t = 1
-                } else {
-                    let dx = abs(Double(xx) + 0.5 - cx) / (W / 2)
-                    let dy = Double(y) < G.vy ? (G.vy - Double(y)) / G.vy : (Double(y) - G.vy) / (H - G.vy)
-                    t = 1 - max(dx, dy)
+        let G = geo(w, h), W = Double(w), H = Double(h), F = W * 0.85
+        let O = objects()
+        let haze: RGB = (238, 238, 235)
+        for j in 0..<h {
+            for i in 0..<w {
+                let dx = (Double(i) + 0.5 - G.cx) / F, dy = (Double(j) + 0.5 - G.hy) / F
+                let (col, z) = trace(0.25, 0, dx, dy, O)
+                let f = min(0.78, 1 - exp(-(z - 2) / 16))
+                let q = (bayer[j & 3][i & 3] / 16 - 0.5) * 10
+                func ch(_ v: UInt8, _ hz: UInt8) -> UInt8 {
+                    let x = Double(v) * (1 - f) + Double(hz) * f
+                    return UInt8(clamping: Int(((x + q) / 8).rounded()) * 8)
                 }
-                let f = 0.12 + 0.5 * clampD(t, 0, 1)
-                let i = (y * w + xx) * 4
-                c.d[i] = UInt8((Double(c.d[i]) * (1 - f) + Double(paper.0) * f).rounded())
-                c.d[i + 1] = UInt8((Double(c.d[i + 1]) * (1 - f) + Double(paper.1) * f).rounded())
-                c.d[i + 2] = UInt8((Double(c.d[i + 2]) * (1 - f) + Double(paper.2) * f).rounded())
+                let p = (j * w + i) * 4
+                c.d[p] = ch(col.0, haze.0); c.d[p + 1] = ch(col.1, haze.1); c.d[p + 2] = ch(col.2, haze.2); c.d[p + 3] = 255
             }
         }
-
-        // Kasten hinten: Boden in Perspektive, Rückkanten (liegen hinter dem Wesen)
-        let cb0 = G.cb0, cb1 = G.cb1, ct = G.ct, yF = G.yF, yB = G.yB
-        c.quad([(0, yF), (cb0, yB), (cb1, yB), (W, yF)], light)
-        for k in 1..<6 {
-            let t = Double(k) / 6
-            c.line(cb0 + (cb1 - cb0) * t, yB, W * t, yF, (226, 226, 223))
+        // Kastenboden in Perspektive (vorne breit, hinten schmal) und Hinterkanten
+        var y = Int(ceil(G.yB))
+        while y < h {
+            let f = (Double(y) - G.hy) / (G.yF - G.hy)
+            let xl = G.cx - G.cx * f, xr = G.cx + (W - G.cx) * f
+            for x in max(0, Int(floor(xl)))..<min(w, Int(ceil(xr))) { c.set(Double(x), Double(y), (247, 247, 245), 0.92) }
+            y += 1
         }
-        c.line(cb0, yB, cb1, yB, (180, 180, 176))
-        c.line(cb0, ct, cb0, yB, (176, 180, 182), 0.8)
-        c.line(cb1, ct, cb1, yB, (176, 180, 182), 0.8)
-        c.line(cb0, ct, cb1, ct, (176, 180, 182), 0.8)
-        // Seitenscheiben und Deckel leicht kühl getönt
-        c.quad([(0, 0), (cb0, ct), (cb0, yB), (0, yF)], (200, 214, 218), 0.16)
-        c.quad([(W, 0), (W, yF), (cb1, yB), (cb1, ct)], (200, 214, 218), 0.22)
-        c.quad([(0, 0), (W, 0), (cb1, ct), (cb0, ct)], (210, 220, 224), 0.14)
+        for k in 1..<8 {
+            let t = Double(k) / 8
+            c.line(G.cb0 + (G.cb1 - G.cb0) * t, G.yB, W * t, G.yF, (228, 228, 225))
+        }
+        c.line(G.cb0, G.yB, G.cb1, G.yB, (178, 180, 182))
+        c.line(G.cb0, G.ct, G.cb0, G.yB, (170, 174, 178), 0.8)
+        c.line(G.cb1, G.ct, G.cb1, G.yB, (170, 174, 178), 0.8)
+        c.line(G.cb0, G.ct, G.cb1, G.ct, (170, 174, 178), 0.8)
+        _ = H
         return c
     }
 
-    /// Glas vor dem Wesen: Kanten zur Rückseite, Spiegelungen, Frontrahmen, Sockel
+    /// Glas vor dem Wesen: getönte Seitenscheiben, Kanten zur Rückseite, Spiegelungen, schmaler heller Rahmen
     static func glass(_ w: Int, _ h: Int) -> PixelCanvas {
         var c = PixelCanvas(w, h, opaque: false)
         let G = geo(w, h), W = Double(w), H = Double(h)
-        let cb0 = G.cb0, cb1 = G.cb1, ct = G.ct, yF = G.yF, yB = G.yB
-        c.line(0, 0, cb0, ct, (120, 128, 134))
-        c.line(W - 1, 0, cb1, ct, (120, 128, 134))
-        c.line(0, yF, cb0, yB, (150, 156, 160), 0.8)
-        c.line(W - 1, yF, cb1, yB, (150, 156, 160), 0.8)
-        // Spiegelungen auf der Frontscheibe
+        c.quad([(0, 0), (G.cb0, G.ct), (G.cb0, G.yB), (0, G.yF)], (196, 212, 218), 0.09)
+        c.quad([(W, 0), (W, G.yF), (G.cb1, G.yB), (G.cb1, G.ct)], (196, 212, 218), 0.13)
+        c.quad([(0, 0), (W, 0), (G.cb1, G.ct), (G.cb0, G.ct)], (206, 218, 224), 0.1)
+        c.line(0, 0, G.cb0, G.ct, (120, 128, 134))
+        c.line(W - 1, 0, G.cb1, G.ct, (120, 128, 134))
+        c.line(0, G.yF, G.cb0, G.yB, (150, 156, 160), 0.8)
+        c.line(W - 1, G.yF, G.cb1, G.yB, (150, 156, 160), 0.8)
         var y = 4.0
-        while y < yF - 1 {
-            let x = (W * 0.16 + (yF - y) * 0.42).rounded()
-            c.rect(x, y, x + 3, y + 1, white, 0.35); c.rect(x + 6, y, x + 7, y + 1, white, 0.25)
-            if y < yF * 0.55 {
-                let x2 = (W * 0.78 + (yF * 0.55 - y) * 0.42).rounded()
-                c.rect(x2, y, x2 + 2, y + 1, white, 0.25)
+        while y < G.yF - 1 {
+            let x = (W * 0.16 + (G.yF - y) * 0.42).rounded()
+            c.rect(x, y, x + 3, y + 1, white, 0.33); c.rect(x + 6, y, x + 7, y + 1, white, 0.22)
+            if y < G.yF * 0.55 {
+                let x2 = (W * 0.78 + (G.yF * 0.55 - y) * 0.42).rounded()
+                c.rect(x2, y, x2 + 2, y + 1, white, 0.22)
             }
             y += 1
         }
-        // Frontrahmen: feine dunkle Linie, oben ein Deckel mit Schrauben
-        c.rect(0, 0, W, 3, (226, 226, 223)); c.rect(0, 3, W, 4, slate); c.rect(0, 0, W, 1, white, 0.8)
-        c.rect(0, 0, 2, yF, (226, 226, 223)); c.rect(2, 3, 3, yF, slate)
-        c.rect(W - 2, 0, W, yF, (226, 226, 223)); c.rect(W - 3, 3, W - 2, yF, slate)
+        c.rect(0, 0, W, 2, (226, 226, 223)); c.rect(0, 2, W, 3, slate); c.rect(0, 0, W, 1, white, 0.8)
+        c.rect(0, 0, 2, G.yF, (226, 226, 223)); c.rect(2, 3, 3, G.yF, slate)
+        c.rect(W - 2, 0, W, G.yF, (226, 226, 223)); c.rect(W - 3, 3, W - 2, G.yF, slate)
+        c.rect(0, G.yF, W, H, (214, 216, 214)); c.rect(0, G.yF, W, G.yF + 1, (170, 174, 176))
         var x = 10.0
-        while x < W - 8 { c.rect(x, 1, x + 2, 2, grey); x += 12 }
-        // Sockel vorne
-        c.rect(0, yF, W, H, slate); c.rect(0, yF, W, yF + 1, ink); c.rect(0, yF + 1, W, yF + 2, (96, 104, 110))
-        x = 6
-        while x < W * 0.3 { c.rect(x, yF + 4, x + 1, yF + 5, (120, 128, 134)); x += 3 }
-        c.rect(W - 12, yF + 3, W - 9, yF + 6, orange)
+        while x < W - 8 { c.rect(x, 0, x + 2, 1, grey); x += 12 }
         c.rect(4, 4, 6, 6, orange); c.rect(W - 6, 4, W - 4, 6, orange)
         return c
     }

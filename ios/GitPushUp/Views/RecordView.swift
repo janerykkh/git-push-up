@@ -67,7 +67,7 @@ struct RecordView: View {
         let color = Exercise.byId[m.id]?.cat.color ?? .wire
         return Button { open(m.id) } label: {
             HStack(spacing: 12) {
-                Circle().fill(color).frame(width: 6, height: 6).glow(color, 4)
+                Rectangle().fill(color).frame(width: PX * 3, height: PX * 3).glow(color, 4)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(m.label).font(mono(14)).foregroundStyle(Color.fg)
                     Text(prev.map { "Bisher: \($0)\(u)" } ?? "noch kein Rekord").font(mono(11)).foregroundStyle(Color.muted)
@@ -118,7 +118,7 @@ struct RecordView: View {
                     .font(mono(22)).foregroundStyle(Color.fg)
                     .padding(.horizontal, 14).frame(height: 52)
                     .background(Color.panel)
-                    .overlay(RoundedRectangle(cornerRadius: 4).stroke(Color.line2, lineWidth: 1))
+                    .overlay(PixelFrame().fill(Color.line2))
                 Button("SPEICHERN") {
                     guard let v = Int(input), v > 0 else { return }
                     timerStart = nil

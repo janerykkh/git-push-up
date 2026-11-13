@@ -1,4 +1,4 @@
 /// Wird bei jeder Änderung hochgezählt. Steht unten in den Einstellungen, damit man sieht, ob der neue Code auf dem iPhone ist.
 enum AppBuild {
-    static let id = "14 · Laborblatt, 3D-Kasten, EEG"
+    static let id = "15 · Pixel-Labor, NASA-Schrift, Serienbonus"
 }

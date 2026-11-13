@@ -2,20 +2,27 @@ import Foundation
 
 /// Wie es dem Wesen geht, berechnet aus dem Protokoll. Nichts davon wird gespeichert.
 ///
-/// Wachstum: jede Einheit seit dem Schlüpfen bringt Wachstumspunkte (Kraft 1, Teilprobe 0,6, Boss 1,2, Dehnen 1,
-/// Meditation je nach Minuten). Pro Tag zählen höchstens 5 Punkte: Regelmäßigkeit schlägt Menge.
-/// Rund 230 Punkte = ausgewachsen, also etwa zwei Monate mit 4 Einheiten am Tag.
-/// Jeder Punkt wird über 10 Stunden eingeblendet: das Wesen springt nie, es wächst zwischen zwei Blicken nur ein kleines Stück.
+/// Wachstum: jede Einheit bringt Punkte (Kraft 1, Teilprobe 0,6, Boss 1,2, Dehnen 1, Meditation je nach Minuten).
+/// Die ersten 5 Punkte eines Tages zählen voll, jeder weitere noch 30 %: jede Übung bringt etwas, Regelmäßigkeit mehr.
+/// Serienbonus: pro Tag in Folge +5 %, höchstens +50 % (ab Tag 11).
+/// Rund 320 Punkte = ausgewachsen, also etwa zwei Monate mit 4 Einheiten am Tag und laufender Serie.
+/// Jeder Punkt wird über 3 Stunden eingeblendet: das Wesen springt nie, die Zahl läuft sichtbar hoch.
 ///
-/// Prägung: was in den letzten Wochen überwiegt (Kraft, Dehnen, Geist), mit langsamem Vergessen (Zeitkonstante 3 Wochen).
-/// Zustand: wie viel in den letzten ~2 Tagen los war. Wachstum geht nie verloren; vernachlässigt wird es nur blass und schläfrig.
+/// Prägung (Tonus, Elastizität, Resonanz): Punkte der jeweiligen Art mit langsamem Vergessen (Zeitkonstante 3 Wochen).
+/// Die Sättigung ist der Stand, der sich bei regelmäßiger Pflege einpendelt; darüber wächst die Prägung nicht weiter.
 struct CreatureVitals {
     var g: Double             // Wachstum 0…1
-    var strength: Double      // Pflege-Niveau 0…1
-    var stretch: Double
-    var mind: Double
+    var strengthPts: Double   // Prägungspunkte
+    var stretchPts: Double
+    var mindPts: Double
     var health: Double        // 0…1
     var ageDays: Int
+    var todayPts: Double      // heute verdiente Wachstumspunkte (mit Bonus)
+    var streakBonus: Double   // aktueller Serienbonus, z. B. 0,2 = +20 %
+
+    var strength: Double { min(1, strengthPts / CreatureModel.strengthGoal) }
+    var stretch: Double { min(1, stretchPts / CreatureModel.stretchGoal) }
+    var mind: Double { min(1, mindPts / CreatureModel.mindGoal) }
     var traits: Traits { Traits.from(strength: strength, stretch: stretch, mind: mind) }
     /// Farbkraft: unter ~60 % Zustand werden die Farben blasser
     var vigor: Double { 0.3 + 0.7 * min(1, health / 0.6) }
@@ -40,12 +47,15 @@ struct CreatureVitals {
 }
 
 enum CreatureModel {
-    static let growthGoal = 230.0
-    static let dailyCap = 5.0
-    static let absorbMs = 10 * hourMs
+    static let growthGoal = 320.0
+    static let fullPerDay = 5.0
+    static let extraFactor = 0.3
+    static let bonusPerDay = 0.05
+    static let bonusMax = 0.5
+    static let absorbMs = 3 * hourMs
     static let memoryMs = 21 * dayMs
     static let healthMs = 36 * hourMs
-    // Niveau 100 %: so viel steht bei regelmäßiger Pflege (~3–4 Einheiten am Tag nach GO-Mischung) im Gedächtnis
+    // Sättigung: so viel steht bei regelmäßiger Pflege (~3–4 Einheiten am Tag nach GO-Mischung) im Gedächtnis
     static let strengthGoal = 38.0
     static let stretchGoal = 15.0
     static let mindGoal = 9.0
@@ -104,11 +114,16 @@ extension Store {
 
     func vitals(at now: Millis = nowMs()) -> CreatureVitals {
         guard let c = state.creature else {
-            return CreatureVitals(g: 0, strength: 0, stretch: 0, mind: 0, health: 1, ageDays: 0)
+            return CreatureVitals(g: 0, strengthPts: 0, stretchPts: 0, mindPts: 0, health: 1, ageDays: 0, todayPts: 0, streakBonus: 0)
         }
         let cal = Calendar.current
+        let todayStart = cal.startOfDay(for: Date(timeIntervalSince1970: now / 1000))
         var used: [Date: Double] = [:]
-        var growth = 0.0, sk = 0.0, st = 0.0, mi = 0.0
+        var growth = 0.0, sk = 0.0, st = 0.0, mi = 0.0, today = 0.0
+        // Serie pro Tag: wie viele Tage in Folge (bis einschließlich diesem) etwas gemacht wurde
+        var streakAt: [Date: Int] = [:]
+        var lastDay: Date? = nil
+        var run = 0
         // Frisch geschlüpft ist es munter
         var hp = 4 * exp(-max(0, now - c.born) / CreatureModel.healthMs)
         for l in state.log where l.ts >= c.born && l.ts <= now {
@@ -117,10 +132,18 @@ extension Store {
             let age = now - l.ts
             let absorb = smoothstep(0, CreatureModel.absorbMs, age)
             let day = cal.startOfDay(for: Date(timeIntervalSince1970: l.ts / 1000))
+            if streakAt[day] == nil {
+                if let ld = lastDay, let next = cal.date(byAdding: .day, value: 1, to: ld), next == day { run += 1 } else { run = 1 }
+                streakAt[day] = run
+                lastDay = day
+            }
+            let bonus = 1 + min(CreatureModel.bonusMax, CreatureModel.bonusPerDay * Double((streakAt[day] ?? 1) - 1))
             let u = used[day] ?? 0
-            let add = max(0, min(w, CreatureModel.dailyCap - u))
-            used[day] = u + add
-            growth += add * absorb
+            let full = max(0, min(w, CreatureModel.fullPerDay - u))
+            let pts = (full + (w - full) * CreatureModel.extraFactor) * bonus
+            used[day] = u + w
+            growth += pts * absorb
+            if day == todayStart { today += pts }
             let mem = w * absorb * exp(-age / CreatureModel.memoryMs)
             switch kind {
             case .strength: sk += mem
@@ -129,13 +152,18 @@ extension Store {
             }
             hp += w * smoothstep(0, 0.25 * hourMs, age) * exp(-age / CreatureModel.healthMs)
         }
+        // Bonus, der jetzt gerade gilt (Serie bis heute oder gestern)
+        var bonusNow = 0.0
+        if let ld = lastDay, let s = streakAt[ld] {
+            let gap = cal.dateComponents([.day], from: ld, to: todayStart).day ?? 99
+            if gap <= 1 { bonusNow = min(CreatureModel.bonusMax, CreatureModel.bonusPerDay * Double(s - (gap == 0 ? 1 : 0))) }
+        }
         return CreatureVitals(
             g: min(1, growth / CreatureModel.growthGoal),
-            strength: min(1, sk / CreatureModel.strengthGoal),
-            stretch: min(1, st / CreatureModel.stretchGoal),
-            mind: min(1, mi / CreatureModel.mindGoal),
+            strengthPts: sk, stretchPts: st, mindPts: mi,
             health: min(1, hp / 4.5),
-            ageDays: max(0, Int((now - c.born) / dayMs))
+            ageDays: max(0, Int((now - c.born) / dayMs)),
+            todayPts: today, streakBonus: bonusNow
         )
     }
 
@@ -153,7 +181,7 @@ extension Store {
         return (0..<n).map { i in
             let d = cal.date(byAdding: .day, value: i - (n - 1), to: today) ?? today
             if d < born { return nil }
-            return min(CreatureModel.dailyCap, sums[d] ?? 0)
+            return sums[d] ?? 0
         }
     }
 

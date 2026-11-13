@@ -156,7 +156,7 @@ struct SettingsView: View {
                 .font(mono(16)).foregroundStyle(Color.fg)
                 .padding(.horizontal, 12).frame(height: 46)
                 .background(Color.panel)
-                .overlay(RoundedRectangle(cornerRadius: 4).stroke(Color.line2, lineWidth: 1))
+                .overlay(PixelFrame().fill(Color.line2))
         }
     }
 

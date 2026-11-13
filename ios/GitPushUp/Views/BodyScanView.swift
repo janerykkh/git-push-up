@@ -15,7 +15,7 @@ struct BodyScanView: View {
 
     var body: some View {
         GeometryReader { geo in
-            TimelineView(.animation) { tl in
+            TimelineView(.animation(minimumInterval: 1 / 15)) { tl in
                 let angle = currentAngle(tl.date)
                 Canvas { ctx, size in
                     BodyModel.draw(ctx: &ctx, size: size, angle: angle, fatigue: fatigue, selected: selected)
@@ -127,7 +127,7 @@ enum BodyModel {
         let (scale, cx, cy) = frame(size)
 
         // Bodengitter
-        var grid = Path()
+        var grid = PixelPath()
         for i in -4...4 {
             let d = Double(i) * 25
             for (a, b) in [(SIMD3(d, 350, -100), SIMD3(d, 350, 100)), (SIMD3(-100, 350, d), SIMD3(100, 350, d))] {
@@ -136,13 +136,13 @@ enum BodyModel {
                 grid.move(to: CGPoint(x: p.x, y: p.y)); grid.addLine(to: CGPoint(x: q.x, y: q.y))
             }
         }
-        ctx.stroke(grid, with: .color(Color.wire.opacity(0.1)), lineWidth: 1)
+        ctx.pixelStroke(grid, Color.wire.opacity(0.14))
 
         // Hinten zuerst
         let sorted = parts.map { ($0, project($0.c, angle: angle, scale: scale, cx: cx, cy: cy).z) }.sorted { $0.1 < $1.1 }
         for (p, zc) in sorted {
             let (color, alpha, glow) = style(p, fatigue: fatigue, selected: selected)
-            var back = Path(), front = Path()
+            var back = PixelPath(), front = PixelPath()
             for ring in rings {
                 var penB = false, penF = false
                 for u in ring {
@@ -158,9 +158,8 @@ enum BodyModel {
                     }
                 }
             }
-            ctx.stroke(back, with: .color(color.opacity(alpha * 0.35)), lineWidth: 1)
-            if glow > 0 { ctx.stroke(front, with: .color(color.opacity(0.1 + 0.12 * glow)), lineWidth: 4 + 3 * glow) }
-            ctx.stroke(front, with: .color(color.opacity(alpha)), lineWidth: glow > 0 ? 1.3 : 1)
+            ctx.pixelStroke(back, color.opacity(alpha * 0.3))
+            ctx.pixelStroke(front, color.opacity(alpha), size: glow > 0.5 ? PX * 2 : PX)
         }
     }
 

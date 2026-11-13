@@ -4,13 +4,11 @@
 <dict>
 	<!-- Ergänzt die von Xcode erzeugte Info.plist. Audio im Hintergrund: damit der Puls-Bildschirm
 	     bei gesperrtem iPhone weiter auf die Lautstärketasten hört. -->
-	<!-- Eigene Schriften: Doto (Punktmatrix für Zahlen und Namen), IBM Plex Mono für alles andere -->
+	<!-- Schreibmaschinenschrift für Messwerte (Courier Prime). Überschriften nutzen Helvetica, die ist im iPhone schon drin. -->
 	<key>UIAppFonts</key>
 	<array>
-		<string>DotoLab-ExtraBold.ttf</string>
-		<string>IBMPlexMono-Regular.ttf</string>
-		<string>IBMPlexMono-Medium.ttf</string>
-		<string>IBMPlexMono-SemiBold.ttf</string>
+		<string>CourierPrime-Regular.ttf</string>
+		<string>CourierPrime-Bold.ttf</string>
 	</array>
 	<key>UIBackgroundModes</key>
 	<array>
