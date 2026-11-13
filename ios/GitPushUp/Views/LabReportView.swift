@@ -1,13 +1,24 @@
 import SwiftUI
 import Charts
 
-/// Laborakte: alles Genaue hinter dem Startbildschirm. Biomarker, Körper-Scan, Gewebeanalyse, Ziele, Verlauf.
+/// Laborakte: alles Genaue hinter dem Startbildschirm. Wochenpensum, Körper-Scan, Gewebeanalyse, Ziele, Verlauf.
 struct LabReportView: View {
     @EnvironmentObject var store: Store
-    let onExercise: (Exercise) -> Void
     let onClose: () -> Void
+    let jump: ReportJump
 
-    @State var selected: Muscle? = nil
+    @State private var selected: Muscle?
+    @State private var running: ActivePick? = nil
+    @State private var done: DoneInfo? = nil
+
+    init(onClose: @escaping () -> Void, jump: ReportJump = .top) {
+        self.onClose = onClose
+        self.jump = jump
+        if case let .muscle(m) = jump { _selected = State(initialValue: m) } else { _selected = State(initialValue: nil) }
+    }
+
+    /// Übung direkt aus der Akte heraus starten; sie läuft über der Akte, danach ist man wieder hier
+    private func run(_ ex: Exercise) { running = ActivePick(ex: ex, boss: false) }
 
     private struct MuscleGroup: Identifiable { let id: String; let muscles: [Muscle] }
     private let groups: [MuscleGroup] = [
@@ -25,8 +36,8 @@ struct LabReportView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 16) {
                         header
-                        counters
                         biomarkerPanel(bio)
+                        Color.clear.frame(height: 0).id("scanTop")
                         scan(f)
                         if let m = selected { muscleInfo(m, f).id("info") }
                         tissue(f)
@@ -39,11 +50,32 @@ struct LabReportView: View {
                     .padding(.horizontal, 16).padding(.top, 8).padding(.bottom, 32)
                 }
                 .onChange(of: selected) { m in
-                    if m != nil { withAnimation { proxy.scrollTo("info", anchor: .center) } }
+                    // nur so weit, dass das Körperfenster knapp unter der Oberkante steht
+                    if m != nil { withAnimation { proxy.scrollTo("scanTop", anchor: UnitPoint(x: 0.5, y: 0.012)) } }
+                }
+                .onAppear {
+                    switch jump {
+                    case .history:
+                        store.state.period = .day
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { withAnimation { proxy.scrollTo("verlauf", anchor: .top) } }
+                    case .muscle:
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { withAnimation { proxy.scrollTo("scanTop", anchor: UnitPoint(x: 0.5, y: 0.012)) } }
+                    case .top: break
+                    }
                 }
             }
         }
         .background(LabBackdrop())
+        .doneFlash($done)
+        .fullScreenCover(item: $running) { pick in
+            ActivityRunner(
+                pick: pick,
+                onDone: { d in running = nil; done = d },
+                onSkip: { running = nil },
+                onClose: { running = nil }
+            )
+            .environmentObject(store)
+        }
     }
 
     // MARK: Kopf
@@ -62,64 +94,20 @@ struct LabReportView: View {
         }
     }
 
-    private var todayEntries: [LogEntry] {
-        let s = store.startOfDay()
-        return store.state.log.filter { $0.ts >= s }
-    }
-
-    /// Drei Zählwerke wie mechanische Zähler an einem Gerät
-    private var counters: some View {
-        let today = todayEntries
-        let s = store.streak
-        return HStack(spacing: 8) {
-            counter("SERIE", s, s > 0 ? .amber : .muted)
-            counter("HEUTE", today.count, today.isEmpty ? .muted : .phos)
-            counter("PROBEN", store.state.log.count, .wire)
-        }
-    }
-
-    private func counter(_ label: String, _ v: Int, _ c: Color) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Label12(text: label, size: 9)
-            HStack(spacing: 2) {
-                ForEach(Array(String(format: "%03d", min(999, v))).indices, id: \.self) { i in
-                    let digits = Array(String(format: "%03d", min(999, v)))
-                    Text(String(digits[i]))
-                        .font(mono(22, .bold)).foregroundStyle(c).glow(c == .muted ? .clear : c, 6)
-                        .frame(width: 20, height: 30)
-                        .background(Color.bg)
-                        .overlay(Rectangle().stroke(Color.line2, lineWidth: 1))
-                }
-            }
-        }
-        .padding(10)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .labFrame(c == .muted ? .line2 : c)
-    }
-
     // MARK: Biomarker
 
     /// Alles auf einer Skala: Anteil am Wochenziel, mit echter Einheit daneben. Erholung ist ein Zustand, kein Wochenwert,
     /// darum steht sie getrennt darunter.
     private func biomarkerPanel(_ b: Store.Biomarkers) -> some View {
-        Block(title: "BIOMARKER", trailing: "WOCHENZIEL · 7 TAGE", accent: .signal) {
+        Block(title: "WOCHENPENSUM", trailing: "LETZTE 7 TAGE", accent: .signal) {
             marker("KRAFTSÄTZE", b.strengthSets, Store.Biomarkers.strengthTarget, "SÄTZE")
             marker("DEHNEN", b.stretchCount, Store.Biomarkers.stretchTarget, "EINHEITEN")
             marker("MEDITATION", b.neuroMinutes, Store.Biomarkers.mindTarget, "MIN")
             marker("AKTIVE TAGE", b.activeDays, Store.Biomarkers.daysTarget, "TAGE")
-            Rectangle().fill(Color.line).frame(height: PX)
-            VStack(alignment: .leading, spacing: 3) {
-                HStack(alignment: .firstTextBaseline) {
-                    Label12(text: "ERHOLUNG JETZT", color: .fg, size: 10)
-                    Spacer()
-                    Text("\(Int((b.regeneration * 100).rounded())) %").font(mono(13, .bold)).foregroundStyle(Color.wire)
-                }
-                PixelBar(value: b.regeneration, color: .wire, height: 6)
-                Text("Wie erholt die Muskeln gerade im Schnitt sind. Kein Wochenwert.").font(mono(10)).foregroundStyle(Color.dim)
-            }
         }
     }
 
+    /// Ein Block pro Satz, Minute oder Tag des Ziels
     private func marker(_ name: String, _ v: Int, _ target: Int, _ unit: String) -> some View {
         VStack(alignment: .leading, spacing: 3) {
             HStack(alignment: .firstTextBaseline) {
@@ -127,7 +115,7 @@ struct LabReportView: View {
                 Spacer()
                 Text("\(v) / \(target) \(unit)").font(mono(13, .bold)).foregroundStyle(v >= target ? Color.signal : Color.fg)
             }
-            PixelBar(value: Double(v) / Double(max(1, target)), color: .signal, height: 6)
+            SegMeter(value: Double(v) / Double(max(1, target)), color: .signal, segments: target, height: 8)
         }
     }
 
@@ -175,11 +163,11 @@ struct LabReportView: View {
                 .font(mono(12)).foregroundStyle(Color.muted).fixedSize(horizontal: false, vertical: true)
             HStack(spacing: 10) {
                 if let ex = best, store.hasBaseline {
-                    Button("KRAFT: \(ex.name.uppercased())") { onExercise(ex) }
+                    Button("KRAFT: \(ex.name.uppercased())") { run(ex) }
                         .buttonStyle(HangarButtonStyle(color: .phos, filled: true))
                 }
                 if let s = stretch {
-                    Button("DEHNEN") { onExercise(s) }
+                    Button("DEHNEN") { run(s) }
                         .buttonStyle(HangarButtonStyle(color: ExCategory.dehnen.color, filled: true))
                         .frame(width: 110)
                 }
@@ -207,25 +195,20 @@ struct LabReportView: View {
     }
 
     private func tissue(_ f: [Muscle: Double]) -> some View {
-        let week = store.weeklyLoad()
-        return Block(title: "GEWEBEANALYSE", trailing: "JETZT · WOCHE", accent: .phos) {
-            Text("Jetzt = wie belastet der Muskel gerade ist. Woche = wie viel er in 7 Tagen gearbeitet hat (100 % ≈ 6 harte Sätze).")
-                .font(mono(10)).foregroundStyle(Color.dim).fixedSize(horizontal: false, vertical: true)
+        return Block(title: "GEWEBEANALYSE", trailing: "BELASTUNG JETZT", accent: .signal) {
             ForEach(groups) { g in
                 HStack(spacing: 6) {
                     Label12(text: g.id, color: .wire)
                     Spacer()
-                    Text(pct(groupAverage(g, f))).font(mono(11, .bold)).foregroundStyle(Color.phos)
-                    Text("·").font(mono(11)).foregroundStyle(Color.dim)
-                    Text(pct(groupAverage(g, week))).font(mono(11, .bold)).foregroundStyle(Color.amber)
+                    Text(pct(groupAverage(g, f))).font(mono(11, .bold)).foregroundStyle(Color.fg)
                 }
                 .padding(.top, 6)
-                ForEach(g.muscles) { m in muscleRow(m, f[m] ?? 0, week[m] ?? 0) }
+                ForEach(g.muscles) { m in muscleRow(m, f[m] ?? 0) }
             }
         }
     }
 
-    private func muscleRow(_ m: Muscle, _ v: Double, _ wk: Double) -> some View {
+    private func muscleRow(_ m: Muscle, _ v: Double) -> some View {
         let h = store.hoursToRecover(m, v)
         return Button { selected = (selected == m) ? nil : m } label: {
             VStack(alignment: .leading, spacing: 4) {
@@ -233,13 +216,9 @@ struct LabReportView: View {
                     Text(m.label.uppercased()).font(labelFont(12)).tracking(1)
                         .foregroundStyle(selected == m ? Color.amber : Color.fg)
                     Spacer()
-                    Text(pct(v)).font(mono(12, .bold)).monospacedDigit().foregroundStyle(v >= 0.8 ? Color.phos : Color.wire)
-                    Text("·").font(mono(11)).foregroundStyle(Color.dim)
-                    Text(pct(wk)).font(mono(12, .bold)).monospacedDigit().foregroundStyle(Color.amber)
-                        .frame(width: 44, alignment: .trailing)
+                    Text(pct(v)).font(mono(12, .bold)).monospacedDigit().foregroundStyle(v >= 0.8 ? Color.signal : Color.fg)
                 }
-                SegMeter(value: v, color: v >= 0.8 ? .phos : .wire, segments: 30, height: 4)
-                SegMeter(value: wk, color: .amber, segments: 30, height: 2)
+                SegMeter(value: v, color: v >= 0.8 ? .signal : .wire, segments: 30, height: 4)
                 if h > 0 { Text("erholt in ca. \(h) h").font(mono(9.5)).foregroundStyle(Color.dim) }
             }
             .padding(.vertical, 5)
@@ -327,6 +306,7 @@ struct LabReportView: View {
                 }
             }
         }
+        .id("verlauf")
     }
 
     private func kpi(_ v: String, _ label: String) -> some View {
@@ -397,6 +377,11 @@ struct LabReportView: View {
     }
 
     private func progressRow(_ ex: Exercise) -> some View {
+        Button { run(ex) } label: { progressRowContent(ex).contentShape(Rectangle()) }
+            .buttonStyle(.plain)
+    }
+
+    private func progressRowContent(_ ex: Exercise) -> some View {
         let all = store.state.log.filter { $0.ex == ex.id && !$0.isTest }
         let u = ex.unit == .sec ? " s" : ""
         let rate = all.isEmpty ? "noch nicht gemacht" : "\(Int((Double(all.filter { $0.done }.count) / Double(all.count) * 100).rounded()))% geschafft"

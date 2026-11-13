@@ -5,11 +5,11 @@ import SwiftUI
 struct HomeView: View {
     @EnvironmentObject var store: Store
     let onGo: () -> Void
-    let onManual: () -> Void
+    let onPickExercise: () -> Void
     let onRecord: () -> Void
     let onSettings: () -> Void
     let onPulse: () -> Void
-    let onReport: (Muscle?) -> Void
+    let onReport: (ReportJump) -> Void
 
     @State private var previewG: Double? = nil
     @State private var previewTask: Task<Void, Never>? = nil
@@ -133,9 +133,13 @@ struct HomeView: View {
                     .font(mono(9, v.streakBonus > 0 ? .bold : .regular)).foregroundStyle(v.streakBonus > 0 ? Color.signal : Color.muted)
             }
             .frame(maxWidth: 92)
-            cell("HEUTE", String(format: "%02d", min(99, v.todayCount))) {
-                Text(v.todayCount == 1 ? "ÜBUNG" : "ÜBUNGEN").font(mono(9)).foregroundStyle(Color.muted)
+            Button { onReport(.history) } label: {
+                cell("HEUTE", String(format: "%02d", min(99, v.todayCount))) {
+                    Text(v.todayCount == 1 ? "ÜBUNG ›" : "ÜBUNGEN ›").font(mono(9)).foregroundStyle(Color.muted)
+                }
+                .contentShape(Rectangle())
             }
+            .buttonStyle(PressStyle())
             .frame(maxWidth: 92)
             growthCell(v)
         }
@@ -255,7 +259,7 @@ struct HomeView: View {
             .buttonStyle(PressStyle())
             .accessibilityLabel(first ? "Start: Kraft messen" : "Los, nächste Übung")
 
-            Button { onReport(nil) } label: {
+            Button { onReport(.top) } label: {
                 VStack(alignment: .leading, spacing: 0) {
                     HStack {
                         Text("LABORAKTE").font(labelFont(11)).tracking(1)
@@ -277,7 +281,7 @@ struct HomeView: View {
             }
             .buttonStyle(PressStyle())
 
-            PixelToolButton(icon: PixelIcon.plus, label: "Nachtragen", enabled: store.hasBaseline, action: onManual).frame(width: 40)
+            PixelToolButton(icon: PixelIcon.plus, label: "Übung wählen", action: onPickExercise).frame(width: 40)
             PixelToolButton(icon: PixelIcon.pulse, label: "Puls", action: onPulse).frame(width: 40)
             PixelToolButton(icon: PixelIcon.gear, label: "Einstellungen", action: onSettings).frame(width: 40)
         }
